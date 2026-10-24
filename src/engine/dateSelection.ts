@@ -14,8 +14,16 @@ import {
   getBaziYearCanChi
 } from './calendar';
 import { ClassicalEvidenceProfile, VERIFIED_CLASSICAL_RULES_REGISTRY } from './classicalEvidence';
+export * from './dailyHoroscope';
 
-export type EventPurpose = 'cuoi_hoi' | 'khai_truong' | 'dong_tho' | 'nhap_trach' | 'ky_ket' | 'xuat_hanh';
+export type EventPurpose =
+  | 'tu_vi_hang_ngay'
+  | 'cuoi_hoi'
+  | 'khai_truong'
+  | 'dong_tho'
+  | 'nhap_trach'
+  | 'ky_ket'
+  | 'xuat_hanh';
 
 export interface DayRating {
   solarDate: string; // YYYY-MM-DD
@@ -134,6 +142,13 @@ export function evaluateDate(year: number, month: number, day: number): DayRatin
   }
   if (['Trừ', 'Định', 'Khai'].includes(truc.name) && hoangDao.isHoangDao) {
     suitableFor.push('dong_tho');
+  }
+
+  // Tử vi sinh hoạt hàng ngày: Ngày có điểm khí tốt hoặc hoàng đạo, trực hòa hợp
+  if (score >= 45 || hoangDao.isHoangDao || truc.nature !== 'Hung') {
+    suitableFor.push('tu_vi_hang_ngay');
+  } else {
+    unsuitableFor.push('tu_vi_hang_ngay');
   }
 
   if (['Phá', 'Bế', 'Nguy'].includes(truc.name) || !hoangDao.isHoangDao) {

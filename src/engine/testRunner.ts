@@ -14,6 +14,7 @@ import { calculateThaiNguyen, calculateMenhCung } from './liuzhu';
 import { getMenhThanPositions, calculateCuc, getTuViPosition, generateTuViChart } from './tuvi';
 import { analyzeCompatibility } from './compatibility';
 import { get12ZodiacCompatibility, evaluatePersonalDateCompatibility } from './dateSelection';
+import { calculateDailyHoroscope } from './dailyHoroscope';
 
 import { 
   classifyHandFiveElements, 
@@ -278,6 +279,22 @@ export function runAllMetaphysicsTests(): {
     expected: { unverifiedLocked: true, verifiedHasCitation: true },
     actual: { unverifiedLocked: unverifiedCheck, verifiedHasCitation: Boolean(hasValidCitation) },
     passed: unverifiedCheck === true && Boolean(hasValidCitation) && verifiedReport.auditTrail.verifiedRulesUsed.length >= 2
+  });
+
+  // TEST TỬ VI HÀNG NGÀY & BỐC QUẺ CỔ THƯ (ZERO AI)
+  const dailyTest = calculateDailyHoroscope(2026, 10, 24, 1990, 1, 1);
+  const hasHexagram = Boolean(dailyTest.hexagramDivination.primaryHexagram.nameVi && dailyTest.hexagramDivination.movingLine >= 1);
+  const hasLucNham = Boolean(dailyTest.lucNham.name && dailyTest.lucNham.poemVi);
+  const hasEvidence = dailyTest.classicalEvidence.ruleCode === 'RULE-TC-003' && dailyTest.classicalEvidence.verificationStatus.includes('Đã xác minh');
+
+  results.push({
+    id: 'daily-horoscope-zero-ai',
+    name: 'Kiểm thử Tử Vi Hàng Ngày & Luận Quẻ Chu Dịch Cổ Thư (100% Thuần Cổ Thư - 0% AI)',
+    description: 'Xác minh thuật toán khởi quẻ Mai Hoa Dịch Số, Tiểu Lục Nhâm Khổng Minh và đối chiếu dẫn chứng RULE-TC-003.',
+    input: { targetDate: '2026-10-24', birthDate: '1990-01-01' },
+    expected: { hasHexagram: true, hasLucNham: true, hasEvidence: true },
+    actual: { hasHexagram, hasLucNham, hasEvidence },
+    passed: hasHexagram && hasLucNham && hasEvidence
   });
 
   const passedCount = results.filter(r => r.passed).length;

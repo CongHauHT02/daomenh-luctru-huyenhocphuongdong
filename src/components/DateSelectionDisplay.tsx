@@ -9,6 +9,7 @@ import {
 } from '../engine/dateSelection';
 import { ClassicalEvidenceDrawer } from './ClassicalEvidenceDrawer';
 import { PersonalProfileBar } from './PersonalProfileBar';
+import { DailyHoroscopeSection } from './DailyHoroscopeSection';
 import {
   Calendar as CalendarIcon,
   Sparkles,
@@ -25,13 +26,15 @@ import {
   Award,
   BookmarkCheck,
   Zap,
-  ArrowRight
+  ArrowRight,
+  Scroll
 } from 'lucide-react';
 
 export const DateSelectionDisplay: React.FC = () => {
   const { currentProfile } = useApp();
 
-  const [selectedPurpose, setSelectedPurpose] = useState<EventPurpose>('cuoi_hoi');
+  const [selectedPurpose, setSelectedPurpose] = useState<EventPurpose>('tu_vi_hang_ngay');
+  const [showDailySection, setShowDailySection] = useState<boolean>(true);
   const [startDateStr, setStartDateStr] = useState<string>(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -84,6 +87,7 @@ export const DateSelectionDisplay: React.FC = () => {
   );
 
   const purposesList: { id: EventPurpose; label: string; desc: string }[] = [
+    { id: 'tu_vi_hang_ngay', label: 'Tử Vi Hàng Ngày', desc: 'Bốc quẻ Chu Dịch, Tiểu Lục Nhâm, 4 vận trình sự vụ thường nhật' },
     { id: 'cuoi_hoi', label: 'Cưới Hỏi & Đính Hôn', desc: 'Chọn ngày hòa hợp, trực Thành/Khai, tránh Cô Hư Sát' },
     { id: 'khai_truong', label: 'Khai Trương Mở Cửa', desc: 'Chọn ngày Hoàng Đạo sinh tài, trực Mãn/Khai/Thành' },
     { id: 'dong_tho', label: 'Động Thổ Khởi Công', desc: 'Chọn ngày hoàng đạo, trực Định/Trừ, tránh Nguyệt Phá' },
@@ -178,7 +182,7 @@ export const DateSelectionDisplay: React.FC = () => {
           <span className="text-xs text-slate-400 hidden sm:inline">Phép trạch cát phân định theo từng đại sự cụ thể</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {purposesList.map(p => (
             <button
               key={p.id}
@@ -229,14 +233,21 @@ export const DateSelectionDisplay: React.FC = () => {
         </div>
       </div>
 
-      {/* PHẦN 2: Ô NHẬP NGÀY THÁNG NĂM SINH & ĐÁNH GIÁ CÁ NHÂN HÓA */}
+      {/* TÍNH NĂNG MỚI: TỬ VI HÀNG NGÀY & LUẬN QUẺ CỔ THƯ */}
+      <DailyHoroscopeSection
+        inspectedDateStr={inspectedDateStr}
+        birthDateStr={birthDateStr}
+        onSelectDate={(d) => setInspectedDateStr(d)}
+      />
+
+      {/* PHẦN 3: Ô NHẬP NGÀY THÁNG NĂM SINH & ĐÁNH GIÁ CÁ NHÂN HÓA */}
       <div className="oriental-card rounded-2xl p-6 border border-gold-500/35 space-y-5 bg-gradient-to-b from-ink-900/90 to-ink-950/90 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
           <div className="flex items-center space-x-2.5">
             <User className="w-5 h-5 text-gold-400" />
             <div>
               <h3 className="text-base font-bold text-slate-100 font-oriental">
-                2. Khảo Cứu Cá Nhân Hóa Theo Ngày Tháng Năm Sinh Của Đương Số
+                3. Khảo Cứu Cá Nhân Hóa Theo Ngày Tháng Năm Sinh Của Đương Số
               </h3>
               <p className="text-xs text-slate-400">
                 Nhập ngày sinh để đối chiếu trực tiếp Can Chi, Nạp Âm và Thần Sát của ngày với bản mệnh
@@ -369,13 +380,13 @@ export const DateSelectionDisplay: React.FC = () => {
         </div>
       </div>
 
-      {/* PHẦN 3: BẢNG HIỂN THỊ ĐỦ 12 CON GIÁP TRONG NGÀY ĐANG XEM */}
+      {/* PHẦN 4: BẢNG HIỂN THỊ ĐỦ 12 CON GIÁP TRONG NGÀY ĐANG XEM */}
       <div className="oriental-card rounded-2xl p-6 border border-gold-500/30 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-slate-100 font-oriental flex items-center space-x-2">
               <Sparkles className="w-5 h-5 text-gold-400" />
-              <span>3. Bảng Tương Quan Đầy Đủ 12 Con Giáp Trong Ngày {personalComp.dayCanChi} ({inspectedDateStr})</span>
+              <span>4. Bảng Tương Quan Đầy Đủ 12 Con Giáp Trong Ngày {personalComp.dayCanChi} ({inspectedDateStr})</span>
             </h3>
             <span className="text-xs text-slate-400">
               Khảo sát toàn diện Lục Hợp, Tam Hợp, Lục Xung, Tương Hại, Tương Hình, Tương Phá theo 《Hiệp Kỷ Biện Phương Thư》
@@ -444,16 +455,16 @@ export const DateSelectionDisplay: React.FC = () => {
         </div>
       </div>
 
-      {/* PHẦN 4: DANH SÁCH NGÀY ĐỀ XUẤT THEO MỤC ĐÍCH */}
+      {/* PHẦN 5: DANH SÁCH NGÀY ĐỀ XUẤT THEO MỤC ĐÍCH */}
       <div className="oriental-card rounded-2xl p-6 border border-gold-500/30 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div>
             <h3 className="text-base font-bold text-slate-200 font-oriental flex items-center space-x-2">
               <CalendarIcon className="w-5 h-5 text-gold-400" />
-              <span>4. Danh Sách Ngày Được Đề Xuất (Xếp theo Điểm Cát Khí Tự Nhiên)</span>
+              <span>5. Danh Sách Ngày Được Đề Xuất (Xếp theo Điểm Cát Khí Tự Nhiên)</span>
             </h3>
             <span className="text-xs text-slate-400">
-              Nhấn vào bất kỳ ngày nào bên dưới để nạp vào Bảng Tra Cứu 12 Con Giáp & Bản Mệnh ở trên
+              Nhấn vào bất kỳ ngày nào bên dưới để nạp vào Bảng Tra Cứu Tử Vi & Bản Mệnh ở trên
             </span>
           </div>
           <span className="text-xs px-2.5 py-1 rounded bg-ink-950 text-gold-300 border border-slate-800 font-mono">
@@ -499,7 +510,13 @@ export const DateSelectionDisplay: React.FC = () => {
                           : 'bg-ink-900 text-gold-300 border-slate-700 hover:border-gold-500 hover:bg-gold-500/10'
                       }`}
                     >
-                      <span>{isSelected ? 'Đang Xem Chi Tiết' : 'Soi 12 Con Giáp'}</span>
+                      <span>
+                        {isSelected
+                          ? 'Đang Xem Chi Tiết'
+                          : selectedPurpose === 'tu_vi_hang_ngay'
+                          ? 'Xem Tử Vi & Quẻ Ngày Này'
+                          : 'Soi 12 Con Giáp'}
+                      </span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
