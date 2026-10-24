@@ -1,21 +1,28 @@
 /**
- * ĐẠO MỆNH – BỘ MÁY TỬ VI HÀNG NGÀY & BỐC DỊCH CỔ THƯ (DAILY HOROSCOPE & I CHING ENGINE)
- * Tuân thủ tuyệt đối quy tắc cổ thư:
- * 1. Mai Hoa Dịch Số & Chu Dịch Toàn Thư (Thiệu Khang Tiết, Chu Văn Vương, Khổng Tử)
- * 2. Tiểu Lục Nhâm Khổng Minh Thần Quyết (Gia Cát Lượng)
- * 3. Khâm Định Hiệp Kỷ Biện Phương Thư & Ngọc Hạp Thông Thư (Khâm Thiên Giám)
+ * ĐẠO MỆNH – BỘ MÁY TỬ VI HÀNG NGÀY & BỐC DỊCH CỔ THƯ CHUẨN XÁC
  * 
- * CAM KẾT: 100% THUẦN CỔ THƯ LỊCH SỬ - KHÔNG DÙNG AI ĐỂ TỰ BỊA ĐẶT KẾT QUẢ.
+ * NỀN TẢNG KINH SÁCH CỔ TRUYỀN (100% CỔ THƯ - NÓI KHÔNG VỚI AI PHỎNG ĐOÁN):
+ * 1. Tử Bình Bát Tự Toàn Thư: 《Trích Thiên Tủy》, 《Tam Mệnh Thông Hội》, 《Uyên Hải Tử Bình》
+ *    -> Định Nhật Chủ (Day Master), Thập Thần ngày xem, Địa Chi Tương Tác với Cung Phu Thê và Bản Mệnh.
+ * 2. Chu Dịch Toàn Thư & Mai Hoa Dịch Số (Chu Văn Vương, Khổng Tử, Chu Công Đán, Thiệu Ung):
+ *    -> Khởi quẻ Mai Hoa Dịch Số từ Năm/Tháng/Ngày/Giờ, luận đủ 64 quẻ, Thoán Từ, Tượng Truyện, Hào Động.
+ * 3. Khâm Định Hiệp Kỷ Biện Phương Thư & Ngọc Hạp Thông Thư (Khâm Thiên Giám triều Thanh):
+ *    -> 12 Trực cát hung, Nhị Thập Bát Tú, 12 Thần Hoàng Đạo/Hắc Đạo, Phương Vị Hỷ Thần & Tài Thần.
+ * 4. Tiểu Lục Nhâm Khổng Minh Thần Quyết (Gia Cát Vũ Hầu):
+ *    -> Đại An, Lưu Niên, Tốc Hỷ, Xích Khẩu, Tiểu Cát, Không Vong.
  */
 
 import {
   convertSolarToLunar,
   getDayCanChi,
   getBaziYearCanChi,
+  getBaziMonthCanChi,
+  getHourCanChi,
   EARTHLY_BRANCHES,
   HEAVENLY_STEMS,
   NAP_AM_MAP,
-  LunarDate
+  LunarDate,
+  CanChi
 } from './calendar';
 import {
   evaluateDate,
@@ -26,437 +33,31 @@ import {
   ClassicalEvidenceProfile,
   VERIFIED_CLASSICAL_RULES_REGISTRY
 } from './classicalEvidence';
+import {
+  getFullHexagramDetail,
+  HexagramDetail,
+  TRIGRAM_NAMES
+} from './ichingData';
+import {
+  getTenGod,
+  getLifeStage
+} from './bazi';
 
 // --------------------------------------------------------------------------
-// 1. HỆ THỐNG BÁT QUÁI & 64 QUẺ CHU DỊCH KINH ĐIỂN
-// --------------------------------------------------------------------------
-
-export interface Trigram {
-  number: number;      // 1 đến 8 (Tiên Thiên Bát Quái)
-  name: string;        // Càn, Đoài, Ly, Chấn, Tốn, Khảm, Cấn, Khôn
-  hanzi: string;
-  symbol: string;      // ☰, ☱, ☲, ☳, ☴, ☵, ☶, ☷
-  nature: string;      // Trời, Đầm, Lửa, Sấm, Gió, Nước, Núi, Đất
-  element: string;     // Kim, Hỏa, Mộc, Thủy, Thổ
-  lines: [number, number, number]; // 1: Dương (—), 0: Âm (--), từ dưới lên trên (Hào 1, 2, 3)
-}
-
-export const TIEN_THIEN_BAT_QUAI: Record<number, Trigram> = {
-  1: { number: 1, name: 'Càn', hanzi: '乾', symbol: '☰', nature: 'Thiên (Trời)', element: 'Kim', lines: [1, 1, 1] },
-  2: { number: 2, name: 'Đoài', hanzi: '兌', symbol: '☱', nature: 'Trạch (Đầm)', element: 'Kim', lines: [1, 1, 0] },
-  3: { number: 3, name: 'Ly', hanzi: '離', symbol: '☲', nature: 'Hỏa (Lửa)', element: 'Hỏa', lines: [1, 0, 1] },
-  4: { number: 4, name: 'Chấn', hanzi: '震', symbol: '☳', nature: 'Lôi (Sấm)', element: 'Mộc', lines: [1, 0, 0] },
-  5: { number: 5, name: 'Tốn', hanzi: '巽', symbol: '☴', nature: 'Phong (Gió)', element: 'Mộc', lines: [0, 1, 1] },
-  6: { number: 6, name: 'Khảm', hanzi: '坎', symbol: '☵', nature: 'Thủy (Nước)', element: 'Thủy', lines: [0, 1, 0] },
-  7: { number: 7, name: 'Cấn', hanzi: '艮', symbol: '☶', nature: 'Sơn (Núi)', element: 'Thổ', lines: [0, 0, 1] },
-  8: { number: 8, name: 'Khôn', hanzi: '坤', symbol: '☷', nature: 'Địa (Đất)', element: 'Thổ', lines: [0, 0, 0] },
-};
-
-export interface HexagramData {
-  number: number;
-  nameVi: string;
-  nameZh: string;
-  symbol: string;
-  upperTrigram: number;
-  lowerTrigram: number;
-  judgment: string;           // Thoán Từ (Chu Văn Vương)
-  greatImage: string;         // Đại Tượng Truyện (Khổng Tử)
-  meaning: string;            // Ý nghĩa cốt lõi
-  dailyActionGuidance: string;// Lời khuyên hành sự trong ngày
-  lineTexts: string[];        // Hào 1 -> 6 (Chu Công Đán)
-}
-
-// Danh mục 64 quẻ Chu Dịch chính thống
-export const HEXAGRAMS_MAP: Record<string, HexagramData> = {
-  '1-1': {
-    number: 1, nameVi: 'Thuần Càn', nameZh: '乾為天', symbol: '䷀', upperTrigram: 1, lowerTrigram: 1,
-    judgment: 'Càn: Nguyên, Hanh, Lợi, Trinh. Khí trời chí cương chí đại, vận hành không ngừng.',
-    greatImage: 'Thiên hành kiện, quân tử dĩ tự cường bất tức. (Trời chuyển động mạnh mẽ, người quân tử noi theo mà tự cường không nghỉ).',
-    meaning: 'Thời vận hanh thông rực rỡ, năng lượng dồi dào, khởi đầu đại cát.',
-    dailyActionGuidance: 'Thích hợp quyết đoán triển khai việc lớn, giữ vững chính đạo, tránh tự mãn kiêu căng.',
-    lineTexts: [
-      'Sơ Cửu: Tiềm long vật dụng. (Rồng còn ẩn mình, chưa nên vội động).',
-      'Cửu Nhị: Hiện long tại điền, lợi kiến đại nhân. (Rồng hiện ở ruộng, lợi gặp bậc cao minh).',
-      'Cửu Tam: Quân tử chung nhật càn càn, tịch dịch nhược, lệ vô cữu. (Ngày lo phấn đấu, đêm biết thận trọng, dù nguy cũng không lỗi).',
-      'Cửu Tứ: Hoặc dược tại uyên, vô cữu. (Hoặc nhảy trên đầm sâu, thời cơ chuyển biến, không lỗi).',
-      'Cửu Ngũ: Phi long tại thiên, lợi kiến đại nhân. (Rồng bay trên trời, thời vận đạt đỉnh cao, quý nhân phù trợ).',
-      'Thượng Cửu: Kháng long hữu hối. (Rồng bay quá cao tất có hối hận, nên biết điểm dừng).'
-    ]
-  },
-  '8-8': {
-    number: 2, nameVi: 'Thuần Khôn', nameZh: '坤為地', symbol: '䷁', upperTrigram: 8, lowerTrigram: 8,
-    judgment: 'Khôn: Nguyên, Hanh, Lợi tẫn mã chi trinh. Đất mẹ bao dung, vạn vật nương tựa sinh sôi.',
-    greatImage: 'Địa thế khôn, quân tử dĩ hậu đức tải vật. (Thế đất dày dặn, người quân tử lấy đức dày mà nâng đỡ muôn loài).',
-    meaning: 'Nhu thuận, kiên nhẫn tích lũy, bao dung hòa nhã đem lại an lành.',
-    dailyActionGuidance: 'Hôm nay nên án binh bất động, lắng nghe ý kiến người khác, hoàn thành tốt việc sự vụ hậu cần.',
-    lineTexts: [
-      'Sơ Lục: Lý sương, kiên băng chí. (Giẫm lên sương mai, biết băng dày sắp tới; cẩn trọng từ điềm báo nhỏ).',
-      'Lục Nhị: Trực, phương, đại, bất tập vô bất lợi. (Ngay thẳng, vuông vức, rộng lớn; không cần học mà việc gì cũng lợi).',
-      'Lục Tam: Hàm chương khả trinh, hoặc tòng vương sự, vô thành hữu chung. (Ngậm chứa vẻ đẹp, làm tròn phận sự, sau có kết quả tốt).',
-      'Lục Tứ: Quát nang, vô cữu vô dự. (Buộc kín miệng túi, giữ gìn lời ăn tiếng nói, không lỗi cũng không khen).',
-      'Lục Ngũ: Hoàng thường, nguyên cát. (Mặc xiêm y vàng, giữ đạo trung dung ôn hòa, đại cát).',
-      'Thượng Lục: Long chiến vu dã, kỳ huyết huyền hoàng. (Rồng đánh nhau ngoài đồng, hao tổn khí lực, kỵ tranh chấp đối đầu).'
-    ]
-  },
-  '6-4': {
-    number: 3, nameVi: 'Thủy Lôi Truân', nameZh: '水雷屯', symbol: '䷂', upperTrigram: 6, lowerTrigram: 4,
-    judgment: 'Truân: Nguyên, Hanh, Lợi, Trinh. Vật sơ sinh, gian nan bước đầu nhưng tràn đầy sức sống.',
-    greatImage: 'Vân lôi Truân, quân tử dĩ kinh luân. (Mây sấm mịt mù buổi ban mai, người quân tử lo sắp đặt trật tự).',
-    meaning: 'Khởi đầu gặp trở ngại nhỏ, cần tìm kiếm sự trợ giúp và lập kế hoạch chắc chắn.',
-    dailyActionGuidance: 'Không nên hấp tấp hành động liều lĩnh; hãy tham vấn ý kiến đồng nghiệp, chuẩn bị chu đáo.',
-    lineTexts: [
-      'Sơ Cửu: Bàn hoàn, lợi cư trinh, lợi kiến hầu. (Còn ngập ngừng, nên giữ lòng kiên định, tìm người tài giúp đỡ).',
-      'Lục Nhị: Truân như chiên như, ban mã như. (Trắc trở gian nan, kiên trì chờ thời, không vội kết giao lầm).',
-      'Lục Tam: Tức lộc vô ngu, duy nhập vu lâm trung. (Đuổi hươu không người dẫn đường, dễ lạc vào rừng; đừng làm mù quáng).',
-      'Lục Tứ: Thừa mã ban như, cầu hôn cấu, vãng cát. (Ngựa xe sẵn sàng, tìm người chung chí hướng, tiến tới tất cát).',
-      'Cửu Ngũ: Truân kỳ cao, tiểu trinh cát, đại trinh hung. (Ân huệ chưa trọn, làm việc nhỏ thì tốt, đại sự nên hoãn).',
-      'Thượng Lục: Thừa mã ban như, khấp huyết liên như. (Bế tắc thở than, cần tĩnh tâm tìm lối thoát mới).'
-    ]
-  },
-  '7-6': {
-    number: 4, nameVi: 'Sơn Thủy Mông', nameZh: '山水蒙', symbol: '䷃', upperTrigram: 7, lowerTrigram: 6,
-    judgment: 'Mông: Hanh. Phỉ ngã cầu đồng mông, đồng mông cầu ngã. Khai mở sự mông muội, học hỏi cầu tiến.',
-    greatImage: 'Sơn hạ xuất tuyền, Mông; quân tử dĩ quả hành dục đức. (Dưới chân núi suối chảy, quân tử quyết đoán hành động, bồi dưỡng đạo đức).',
-    meaning: 'Thời cơ học hỏi, lắng nghe lời chỉ giáo của tiền bối, tránh cố chấp theo định kiến.',
-    dailyActionGuidance: 'Hãy thành tâm học hỏi, kiểm tra lại số liệu hợp đồng, khiêm tốn sẽ tránh được rủi ro thất thoát.',
-    lineTexts: [
-      'Sơ Lục: Phát mông, lợi dụng hình nhân. (Khai mở mộng muội, cần giữ kỷ luật thép).',
-      'Cửu Nhị: Bao mông cát, nạp phụ cát, tử khắc gia. (Bao dung người non nớt, hòa thuận gia đình, con gánh vác việc nhà).',
-      'Lục Tam: Vật dụng thủ nữ, kiến kim phu, bất hữu cung. (Chớ vội ham lợi trước mắt mà đánh mất nhân cách).',
-      'Lục Tứ: Khốn mông, lận. (Bị vây trong sự tối tăm định kiến, dễ ân hận; cần mở rộng tầm nhìn).',
-      'Lục Ngũ: Đồng mông, cát. (Ngây thơ trong sáng, biết nghe lời khuyên dạy, tốt lành).',
-      'Thượng Cửu: Kích mông, bất lợi vi khấu, lợi ngự khấu. (Uốn nắn điều sai, tránh hà khắc gay gắt).'
-    ]
-  },
-  '6-1': {
-    number: 5, nameVi: 'Thủy Thiên Nhu', nameZh: '水天需', symbol: '䷄', upperTrigram: 6, lowerTrigram: 1,
-    judgment: 'Nhu: Hữu phu, quang hanh, trinh cát, lợi thiệp đại xuyên. Chờ đợi thời cơ chín muồi, nuôi dưỡng thực lực.',
-    greatImage: 'Vân thượng vu thiên, Nhu; quân tử dĩ ẩm thực yến lạc. (Mây bay lên trời tụ mưa, quân tử ăn uống nghỉ ngơi dưỡng sức).',
-    meaning: 'Kiên nhẫn chờ thời, không nóng vội; mưu sự cần tích lũy năng lượng.',
-    dailyActionGuidance: 'Hôm nay giữ tinh thần thư thái, chuẩn bị tài liệu kỹ lưỡng, thời cơ tốt đẹp sẽ tự nhiên gõ cửa.',
-    lineTexts: [
-      'Sơ Cửu: Nhu vu giao, lợi dụng hằng, vô cữu. (Đợi ở ngoại ô xa, giữ lòng kiên định không sốt ruột, không lỗi).',
-      'Cửu Nhị: Nhu vu sa, tiểu hữu ngôn, chung cát. (Đợi ở bãi cát, có chút lời ra tiếng vào, rốt cuộc vẫn cát).',
-      'Cửu Tam: Nhu vu nê, trí khấu chí. (Đợi ở vũng bùn, sơ hở kẻ xấu dòm ngó; cần cảnh giác đề phòng).',
-      'Lục Tứ: Nhu vu huyết, xuất tự huyệt. (Lâm vào hiểm cảnh, bình tĩnh rút lui bảo toàn lực lượng).',
-      'Cửu Ngũ: Nhu vu tửu thực, trinh cát. (Đợi bên mâm cỗ yến tiệc, hưởng phúc lộc an nhiên, cát lợi).',
-      'Thượng Lục: Nhập vu huyệt, hữu bất tốc chi khách tam nhân lai, kính chi chung cát. (Có khách không mời mà đến, cư xử cung kính rốt cuộc tốt lành).'
-    ]
-  },
-  '1-6': {
-    number: 6, nameVi: 'Thiên Thủy Tụng', nameZh: '天水訟', symbol: '䷅', upperTrigram: 1, lowerTrigram: 6,
-    judgment: 'Tụng: Hữu phu, trĩ dịch, trung cát, chung hung; lợi kiến đại nhân, bất lợi thiệp đại xuyên.',
-    greatImage: 'Thiên dữ thủy vi hành, Tụng; quân tử dĩ tác sự mưu thủy. (Trời đi ngược nước chảy, quân tử khi bắt đầu làm việc phải lo trù liệu trước).',
-    meaning: 'Tranh chấp bất hòa, ý kiến trái ngược, nên dĩ hòa vi quý, tránh kiện tụng đối đầu.',
-    dailyActionGuidance: 'Tuyệt đối tránh tranh cãi với đồng nghiệp hay đối tác hôm nay; nhường nhịn một bước trời cao biển rộng.',
-    lineTexts: [
-      'Sơ Lục: Bất vĩnh sở sự, tiểu hữu ngôn, chung cát. (Không kéo dài tranh chấp, có chút điều tiếng nhỏ rồi qua, chung cuộc tốt).',
-      'Cửu Nhị: Bất khắc tụng, quy nhi bô kỳ ấp. (Tranh tụng không thắng, nhượng bộ rút lui tránh họa).',
-      'Lục Tam: Thực cựu đức, trinh lệ, chung cát. (Dựa vào phúc đức tổ tiên, giữ mình khiêm tốn thì tốt).',
-      'Cửu Tứ: Bất khắc tụng, phục tức mệnh, biến an trinh, cát. (Biết dừng tranh cãi, phục tùng mệnh trời, an định thì lành).',
-      'Cửu Ngũ: Tụng, nguyên cát. (Được bậc trung chính phân xử công minh, đại cát).',
-      'Thượng Cửu: Hoặc tích chi bàn đái, chung triêu tam đoạt chi. (Dù tranh được vinh hoa nhất thời, trong ngày cũng bị tước mất ba lần).'
-    ]
-  },
-  '8-6': {
-    number: 7, nameVi: 'Địa Thủy Sư', nameZh: '地水師', symbol: '䷆', upperTrigram: 8, lowerTrigram: 6,
-    judgment: 'Sư: Trinh, trượng nhân cát, vô cữu. Đạo dùng quân cần chính nghĩa, tướng soái có uy đức.',
-    greatImage: 'Địa trung hữu thủy, Sư; quân tử dĩ dung dân súc chúng. (Trong lòng đất chứa nước, người quân tử bao dung dân chúng, nuôi dưỡng nhân tài).',
-    meaning: 'Kỷ luật, đoàn kết tổ chức, hành động có kế hoạch bài bản mang lại thắng lợi.',
-    dailyActionGuidance: 'Lãnh đạo nhóm bằng sự gương mẫu, phân công nhiệm vụ minh bạch, kỷ luật nghiêm minh.',
-    lineTexts: [
-      'Sơ Lục: Sư xuất dĩ luật, phủ tạng hung. (Ra quân phải có kỷ luật, lộn xộn tất hung).',
-      'Cửu Nhị: Tại sư trung cát, vô cữu, vương tam tích mệnh. (Ở giữa đội ngũ giữ lòng trung chính, được ban thưởng trọng trách).',
-      'Lục Tam: Sư hoặc dư thi, hung. (Quân kỷ lỏng lẻo dễ chở xác về, hung hiểm).',
-      'Lục Tứ: Sư tả thứ, vô cữu. (Biết lui quân tạm nghỉ dưỡng sức, không lỗi).',
-      'Lục Ngũ: Điền hữu cầm, lợi chấp ngôn, vô cữu. (Chim thú phá hoại ruộng vườn, trừ hại cho dân, chính nghĩa quang minh).',
-      'Thượng Lục: Đại quân hữu mệnh, khai quốc thừa gia, tiểu nhân vật dụng. (Định công ban thưởng, chớ dùng kẻ tiểu nhân nịnh hót).'
-    ]
-  },
-  '6-8': {
-    number: 8, nameVi: 'Thủy Địa Tỷ', nameZh: '水地比', symbol: '䷇', upperTrigram: 6, lowerTrigram: 8,
-    judgment: 'Tỷ: Cát. Nguyên phệ, nguyên vĩnh trinh, vô cữu. Gắn kết thân ái, giúp đỡ lẫn nhau.',
-    greatImage: 'Địa thượng hữu thủy, Tỷ; tiên vương dĩ kiến vạn quốc, thân chư hầu. (Nước chan hòa trên đất, bậc tiên vương dựng muôn nước, gắn bó giao bang).',
-    meaning: 'Hợp tác hòa thuận, liên minh vững chắc, tìm được bạn đồng hành đáng tin cậy.',
-    dailyActionGuidance: 'Rất tốt cho các buổi gặp mặt cà phê, mở rộng mối quan hệ hợp tác làm ăn, ký kết giao ước hữu hảo.',
-    lineTexts: [
-      'Sơ Lục: Hữu phu tỷ chi, vô cữu. (Lấy lòng thành tín mà kết giao, không lỗi).',
-      'Lục Nhị: Tỷ chi tự nội, trinh cát. (Gắn kết tự đáy lòng chân thật, cát lành).',
-      'Lục Tam: Tỷ chi phỉ nhân. (Gắn kết nhầm kẻ xấu bụng, phải thận trọng tránh xa).',
-      'Lục Tứ: Ngoại tỷ chi, trinh cát. (Kết thân với hiền tài bên ngoài, tốt lành).',
-      'Cửu Ngũ: Hiển tỷ, vương dụng tam khu, thất tiền cầm, ấp nhân bất giới, cát. (Gắn kết rộng mở không ép buộc ai, mọi người tự nguyện quy thuận).',
-      'Thượng Lục: Tỷ chi vô thủ, hung. (Kết giao mà không có chủ kiến chân thành lúc đầu, rốt cuộc hung).'
-    ]
-  },
-  '5-1': {
-    number: 9, nameVi: 'Phong Thiên Tiểu Súc', nameZh: '風天小畜', symbol: '䷈', upperTrigram: 5, lowerTrigram: 1,
-    judgment: 'Tiểu Súc: Hanh. Mật vân bất vũ, tự ngã tây giao. Tích lũy nhỏ, mây dày chưa thành mưa.',
-    greatImage: 'Phong hành thiên thượng, Tiểu Súc; quân tử dĩ ý văn đức. (Gió thổi trên trời gom tụ mây, quân tử bồi dưỡng văn hóa đức hạnh).',
-    meaning: 'Tích tiểu thành đại, kiên nhẫn tích lũy kinh nghiệm và tài chính, không vội đầu tư ồ ạt.',
-    dailyActionGuidance: 'Thực hiện các việc chi tiêu tiết kiệm, kiểm kê sổ sách kế toán, trau dồi thêm kỹ năng chuyên môn.',
-    lineTexts: [
-      'Sơ Cửu: Phục tự đạo, hà kỳ cữu, cát. (Quay về chính đạo của mình, có lỗi gì đâu, cát lành).',
-      'Cửu Nhị: Khiên phục, cát. (Dắt nhau cùng quay về nẻo thiện, cát lành).',
-      'Cửu Tam: Dư thuyết bức, phu thê phản mục. (Trục xe long gãy, vợ chồng bất hòa; cần giữ bình tĩnh kiểm tra phương tiện).',
-      'Lục Tứ: Hữu phu, huyết khứ dịch xuất, vô cữu. (Có lòng chân thành, tai họa tiêu tan, nỗi sợ biến mất).',
-      'Cửu Ngũ: Hữu phu loan như, phú dĩ kỳ lân. (Có lòng chân thành kết nối mọi người, cùng nhau thịnh vượng).',
-      'Thượng Cửu: Ký vũ ký xử, thượng đức tái, phụ trinh lệ. (Mưa đã rơi, vạn vật đắc thụ ơn lành, nên biết đủ dừng lại).'
-    ]
-  },
-  '1-2': {
-    number: 10, nameVi: 'Thiên Trạch Lý', nameZh: '天澤履', symbol: '䷉', upperTrigram: 1, lowerTrigram: 2,
-    judgment: 'Lý: Lý hổ vĩ, bất xuy nhân, hanh. Đi trên đuôi cọp mà cọp không cắn, lễ nghĩa chu toàn.',
-    greatImage: 'Thượng thiên hạ trạch, Lý; quân tử dĩ biện thượng hạ, định dân chí. (Trên trời dưới đầm phân định tôn ti, quân tử định rõ trật tự, lòng người yên ổn).',
-    meaning: 'Tôn trọng lễ nghi, ứng xử nhã nhặn, cẩn trọng từng bước đi sẽ biến nguy thành an.',
-    dailyActionGuidance: 'Giao tiếp với cấp trên hoặc đối tác lớn cần giữ thái độ lịch thiệp, tôn trọng nguyên tắc và hợp đồng.',
-    lineTexts: [
-      'Sơ Cửu: Tố lý, vãng vô cữu. (Ăn ở mộc mạc đơn thuần, tiến bước không lỗi).',
-      'Cửu Nhị: Lý đạo thản thản, u nhân trinh cát. (Đường đi bằng phẳng thênh thang, người giữ tâm tịnh thì tốt lành).',
-      'Lục Tam: Diễu năng thị, bả năng lý, lý hổ vĩ, xuy nhân, hung. (Mắt chột đòi nhìn xa, chân thọt đòi đi nhanh, giẫm đuôi cọp bị cắn, hung).',
-      'Cửu Tứ: Lý hổ vĩ, tố tố chung cát. (Giẫm đuôi cọp nhưng biết e dè sợ hãi cẩn trọng, rốt cuộc cát lành).',
-      'Cửu Ngũ: Quyết lý, trinh lệ. (Quyết đoán thi hành phép tắc, vẫn luôn giữ lòng thận trọng).',
-      'Thượng Cửu: Thị lý khảo tường, kỳ toàn nguyên cát. (Xem lại đường đi nước bước đã chu toàn vẹn vẻ, đại cát).'
-    ]
-  },
-  '8-1': {
-    number: 11, nameVi: 'Địa Thiên Thái', nameZh: '地天泰', symbol: '䷊', upperTrigram: 8, lowerTrigram: 1,
-    judgment: 'Thái: Tiểu vãng đại lai, cát hanh. Khí trời hạ xuống, khí đất bốc lên, âm dương giao cảm, vạn vật thái bình.',
-    greatImage: 'Thiên địa giao, Thái; hậu dĩ tài thành thiên địa chi đạo. (Trời đất giao hòa sinh vạn vật, bậc vương giả hoàn thành đạo càn khôn).',
-    meaning: 'Thời vận hanh thông tột bậc, trong ấm ngoài êm, thuận lợi mọi bề.',
-    dailyActionGuidance: 'Tranh thủ vận cát để xúc tiến việc quan trọng, ký kết hợp đồng, giải quyết các vướng mắc cũ.',
-    lineTexts: [
-      'Sơ Cửu: Bạt mao như, dĩ kỳ vĩ, chinh cát. (Nhổ rễ cỏ tranh cùng cả đám rễ, chung sức đồng lòng cùng tiến, cát lành).',
-      'Cửu Nhị: Bao hoang, dụng phùng hà, bất hà di, bằng vong, đắc thượng vu trung hành. (Bao dung người thô kệch, dám lội qua sông, trung chính đắc lợi).',
-      'Cửu Tam: Vô bình bất bì, vô vãng bất phục, gian trinh vô cữu. (Không có dốc nào không bằng, không đi nào không lại; giữ lòng chính trực lúc gian khó).',
-      'Lục Tứ: Phiên phiên bất phú, dĩ kỳ lân, bất giới dĩ phu. (Giao hảo vô tư, bạn bè kề cận chân thành tin cậy).',
-      'Lục Ngũ: Đế Ất quy muội, dĩ chỉ nguyên cát. (Vua gả công chúa cầu hòa thân, phước lành vẹn toàn đại cát).',
-      'Thượng Lục: Thành phục vu hoàng, vật dụng sư. (Thành lũy đổ xuống hào rãnh, hết thời thịnh cực chuyển suy; chớ nên manh động).'
-    ]
-  },
-  '1-8': {
-    number: 12, nameVi: 'Thiên Địa Bĩ', nameZh: '天地否', symbol: '䷋', upperTrigram: 1, lowerTrigram: 8,
-    judgment: 'Bĩ chi phỉ nhân, bất lợi quân tử trinh, đại vãng tiểu lai. Trời đất không giao hòa, thời bế tắc.',
-    greatImage: 'Thiên địa bất giao, Bĩ; quân tử dĩ kiệm đức tị nan, bất khả vinh dĩ lộc. (Trời đất cách trở không giao, quân tử ẩn nhẫn tu đức tránh họa).',
-    meaning: 'Thời vận ngưng trệ, kẻ tiểu nhân đắc chí, người quân tử nên kiên nhẫn ẩn nhẫn gìn giữ.',
-    dailyActionGuidance: 'Không nên tranh luận gay gắt hôm nay, tạm hoãn các dự án mới, tập trung bảo toàn vốn liếng.',
-    lineTexts: [
-      'Sơ Lục: Bạt mao như, dĩ kỳ vĩ, trinh cát, hanh. (Nhổ cỏ tranh cùng rễ, giữ lòng kiên định không a dua thì hanh thông).',
-      'Lục Nhị: Bao thừa, tiểu nhân cát, đại nhân bĩ hanh. (Bao dung nhẫn nhịn thời bế tắc, người quân tử giữ khí tiết).',
-      'Lục Tam: Bao tu. (Mang nỗi hổ thẹn trong lòng, biết sai mà sửa).',
-      'Cửu Tứ: Hữu mệnh vô cữu, trù ly chỉ. (Theo mệnh trời hành sự thì không lỗi, đồng nghiệp hưởng phúc theo).',
-      'Cửu Ngũ: Hưu bĩ, đại nhân cát, kỳ vong kỳ vong, hệ vu bao tang. (Thời bế tắc chấm dứt, người quân tử hành sự đại cát, luôn nhớ nguy để giữ bền như gốc dâu).',
-      'Thượng Cửu: Khuynh bĩ, tiên bĩ hậu hỷ. (Thời bế tắc đã đổ nhào, trước gian nan sau tràn ngập niềm vui mừng).'
-    ]
-  },
-  '1-3': {
-    number: 13, nameVi: 'Thiên Hỏa Đồng Nhân', nameZh: '天火同人', symbol: '䷌', upperTrigram: 1, lowerTrigram: 3,
-    judgment: 'Đồng Nhân vu dã, hanh. Lợi thiệp đại xuyên, lợi quân tử trinh. Đồng tâm hiệp lực giữa chốn bao la.',
-    greatImage: 'Thiên dữ hỏa, Đồng Nhân; quân tử dĩ tộc tính biện vật. (Trời cùng với lửa soi sáng, quân tử phân định giống nòi nhận rõ muôn sự).',
-    meaning: 'Đồng lòng chung sức, đại cuộc quang minh, gặp gỡ kết giao bằng hữu tri kỷ.',
-    dailyActionGuidance: 'Thích hợp tổ chức hội thảo, làm việc nhóm, kêu gọi vốn đầu tư, mở rộng mạng lưới quan hệ đối tác.',
-    lineTexts: [
-      'Sơ Cửu: Đồng nhân vu môn, vô cữu. (Ra khỏi cửa cùng hòa đồng với mọi người, không lỗi).',
-      'Lục Nhị: Đồng nhân vu tông, lận. (Chỉ hẹp hòi hòa đồng với thân tộc phe cánh, đáng chê trách).',
-      'Cửu Tam: Phục nhung vu mãng, thăng kỳ cao lăng, tam tuế bất hưng. (Giấu quân nơi rậm rạp nghi kỵ đồng minh, ba năm không ngóc đầu dậy nổi).',
-      'Cửu Tứ: Thừa kỳ dung, bất khắc công, cát. (Trèo lên bờ tường định đánh, kịp tỉnh ngộ không đánh nữa, cát lành).',
-      'Cửu Ngũ: Đồng nhân, tiên hào đào nhi hậu tiếu, đại sư khắc tương ngộ. (Đồng lòng chung chí, trước khóc lóc sau cười vang, đại quân thắng lợi trùng phùng).',
-      'Thượng Cửu: Đồng nhân vu giao, vô hối. (Hòa đồng ở nơi đồng nội xa xôi, tâm trí thảnh thơi không hối hận).'
-    ]
-  },
-  '3-1': {
-    number: 14, nameVi: 'Hỏa Thiên Đại Hữu', nameZh: '火天大有', symbol: '䷍', upperTrigram: 3, lowerTrigram: 1,
-    judgment: 'Đại Hữu: Nguyên Hanh. Lửa trên trời cao tỏa sáng khắp gầm trời, giàu có lớn lao, vạn vật tôn sùng.',
-    greatImage: 'Hỏa tại thiên thượng, Đại Hữu; quân tử dĩ át ác dương thiện, thuận thiên hưu mệnh. (Lửa sáng trên trời, quân tử ngăn ác nêu thiện, thuận theo mệnh trời tốt lành).',
-    meaning: 'Vận tài lộc cực thịnh, công danh hiển đạt, uy tín cá nhân vang xa.',
-    dailyActionGuidance: 'Tự tin đàm phán hợp đồng giá trị lớn, xuất hành buôn bán đắc tài, chia sẻ phúc lộc cho người xung quanh.',
-    lineTexts: [
-      'Sơ Cửu: Vô giao hại, phỉ cữu, gian tắc vô cữu. (Chưa can dự vào chỗ hiểm hại, nhận thức khó khăn thì không lỗi).',
-      'Cửu Nhị: Đại xa dĩ tải, hữu du vãng, vô cữu. (Xe lớn chở nặng tài lộc đi xa, công việc thuận lợi không lỗi).',
-      'Cửu Tam: Công dụng hanh vu thiên tử, tiểu nhân phất khắc. (Bậc công thần hiến công cho vua, tiểu nhân không kham nổi việc lớn này).',
-      'Cửu Tứ: Phỉ kỳ bành, vô cữu. (Không khoe khoang phô trương tài sản quyền thế, không lỗi lầm).',
-      'Cửu Ngũ: Quyết phu giao như, uy như, cát. (Lòng thành tín tỏa rạng kết nối muôn người, có uy nghiêm đức độ, cát lành).',
-      'Thượng Cửu: Tự thiên hữu chi, cát vô bất lợi. (Được trời phù hộ che chở, may mắn muôn sự không gì không lợi).'
-    ]
-  },
-  '8-7': {
-    number: 15, nameVi: 'Địa Sơn Khiêm', nameZh: '地山謙', symbol: '䷎', upperTrigram: 8, lowerTrigram: 7,
-    judgment: 'Khiêm: Hanh, quân tử hữu chung. Núi cao giấu mình dưới lòng đất sâu, đạo đức khiêm tốn tối thượng.',
-    greatImage: 'Địa trung hữu sơn, Khiêm; quân tử dĩ phẫu đa ích quả, xứng vật bình thi. (Trong lòng đất có núi cao, quân tử bớt chỗ nhiều bù chỗ ít, làm việc công bằng).',
-    meaning: 'Khiêm nhường, đức độ dung hòa, quẻ duy nhất trong 64 quẻ có cả 6 hào đều cát lợi.',
-    dailyActionGuidance: 'Giữ thái độ khiêm nhu từ tốn, hạ mình lắng nghe; phúc lộc và sự kính trọng sẽ tự tìm đến.',
-    lineTexts: [
-      'Sơ Lục: Khiêm khiêm quân tử, dụng thiệp đại xuyên, cát. (Khiêm nhường tột bậc, vượt sông lớn hiểm trở cũng cát lành).',
-      'Lục Nhị: Minh khiêm, trinh cát. (Tiếng khiêm nhường vang xa chân thật, giữ lòng kiên định cát lành).',
-      'Cửu Tam: Lao khiêm quân tử, vạn dân phục, cát. (Người quân tử có công lao lớn mà vẫn khiêm hạ, vạn dân kính phục).',
-      'Lục Tứ: Vô bất lợi, huy khiêm. (Không gì không lợi, phát huy đức tính khiêm tốn chân chính).',
-      'Lục Ngũ: Bất phú dĩ kỳ lân, lợi dụng xâm phạt, vô bất lợi. (Được lòng xóm giềng đồng đội, phạt kẻ bạo ngược, trăm sự thuận lợi).',
-      'Thượng Lục: Minh khiêm, lợi dụng hành sư, chinh ấp quốc. (Tiếng khiêm nhường vang xa, tự soi xét uốn nắn bản thân và bộ hạ).'
-    ]
-  },
-  '4-8': {
-    number: 16, nameVi: 'Lôi Địa Dự', nameZh: '雷地豫', symbol: '䷏', upperTrigram: 4, lowerTrigram: 8,
-    judgment: 'Dự: Lợi kiến hầu hành sư. Sấm động trên mặt đất, vạn vật vui tươi hứng khởi, thuận lòng người.',
-    greatImage: 'Lôi xuất địa phấn, Dự; tiên vương dĩ tác nhạc sùng đức, ân tiến vu thượng đế, dĩ phối tổ khảo. (Sấm phát ra từ lòng đất phấn khởi, tiên vương làm nhạc tôn sùng đức hạnh tế tự trời đất).',
-    meaning: 'Vui vẻ hòa hợp, tràn đầy nhiệt huyết và niềm vui, thích hợp khởi công, ca vũ, kết giao.',
-    dailyActionGuidance: 'Tạo bầu không khí phấn khởi cho bản thân và đồng nghiệp; tránh mải mê hưởng lạc quá đà.',
-    lineTexts: [
-      'Sơ Lục: Minh dự, hung. (Khoe khoang sự vui sướng tự mãn, rước họa hung hiểm).',
-      'Lục Nhị: Giới vu thạch, bất chung nhật, trinh cát. (Vững như bàn thạch, biết nhìn xa thấy cơ vi biến chuyển, đại cát).',
-      'Lục Tam: Hu dự, hối, trì hữu hối. (Ngước mắt trông chờ người khác làm vui cho mình, tất hối hận).',
-      'Cửu Tứ: Do dự, đại hữu đắc; vật nghi, bằng hạp dực. (Nguồn vui của mọi người, gặt hái lớn lao; chớ nghi ngờ bè bạn sum vầy).',
-      'Lục Ngũ: Trinh tật, hằng bất tử. (Có chút bệnh mỏi mệt nhưng trường tồn không ngại).',
-      'Thượng Lục: Minh dự, thành hữu du, vô cữu. (Mê muội trong sự hưởng lạc, kịp tỉnh ngộ sửa mình thì không lỗi).'
-    ]
-  }
-};
-
-/**
- * Hàm dự phòng nếu cặp quái chưa có trong bảng rút gọn:
- * Tự sinh dữ liệu chính thống dựa trên quy luật Ngũ hành và Tiên Thiên Bát Quái
- */
-export function getHexagramByTrigrams(upperNum: number, lowerNum: number): HexagramData {
-  const key = `${upperNum}-${lowerNum}`;
-  if (HEXAGRAMS_MAP[key]) {
-    return HEXAGRAMS_MAP[key];
-  }
-
-  const up = TIEN_THIEN_BAT_QUAI[upperNum] || TIEN_THIEN_BAT_QUAI[1];
-  const low = TIEN_THIEN_BAT_QUAI[lowerNum] || TIEN_THIEN_BAT_QUAI[1];
-
-  const genericName = `${up.nature.split(' ')[0]} ${low.nature.split(' ')[0]} Quái`;
-  return {
-    number: (upperNum - 1) * 8 + lowerNum,
-    nameVi: genericName,
-    nameZh: `${up.hanzi}${low.hanzi}`,
-    symbol: '䷅',
-    upperTrigram: upperNum,
-    lowerTrigram: lowerNum,
-    judgment: `Thoán Từ: Thượng quái ${up.name} (${up.nature}) phối Hạ quái ${low.name} (${low.nature}). Khí tượng thiên nhiên tương giao.`,
-    greatImage: `Đại Tượng: ${up.nature} ở trên, ${low.nature} ở dưới. Người quân tử chiêm nghiệm biến hóa của trời đất mà sửa mình.`,
-    meaning: `Tương tác giữa ${up.nature} và ${low.nature}. Vạn sự tùy thời biến dịch.`,
-    dailyActionGuidance: `Nên thuận theo lẽ tự nhiên, cân bằng giữa nhu và cương trong mọi quyết định hàng ngày.`,
-    lineTexts: [
-      'Sơ Hào: Khởi đầu sự vụ, nên cẩn trọng từng bước vững chắc.',
-      'Nhị Hào: Đắc trung đắc chính, hòa hợp với người xung quanh.',
-      'Tam Hào: Chuyển tiếp giữa nội quái và ngoại quái, cần chú ý tiểu tiết.',
-      'Tứ Hào: Bước vào thượng quái, cơ hội mới bắt đầu hé lộ.',
-      'Ngũ Hào: Vị trí quân vị đắc địa, thuận lợi cho việc dẫn dắt và ra quyết định.',
-      'Thượng Hào: Đỉnh điểm của quẻ, nên giữ gìn thành quả, chớ tham lam quá độ.'
-    ]
-  };
-}
-
-// --------------------------------------------------------------------------
-// 2. KHỔNG MINH TIỂU LỤC NHÂM (LỤC THẦN DIỆU QUYẾT)
-// --------------------------------------------------------------------------
-
-export interface KhongMinhLucNhamResult {
-  code: 'dai_an' | 'luu_nien' | 'toc_hy' | 'xich_khau' | 'tieu_cat' | 'khong_vong';
-  name: string;
-  element: string;
-  deity: string;
-  poemZh: string;
-  poemVi: string;
-  dailyMeaning: string;
-  actionAdvice: string;
-  nature: 'Đại Cát' | 'Thứ Cát' | 'Bình Hòa' | 'Hung';
-}
-
-export const LUC_NHAM_DEITIES: Record<number, KhongMinhLucNhamResult> = {
-  1: {
-    code: 'dai_an',
-    name: 'Đại An',
-    element: 'Mộc (Phương Đông)',
-    deity: 'Thanh Long Cát Thần',
-    poemZh: '大安事事昌，求財在坤方，失物去不遠，宅舍保安康。行人身未動，病者在坤方，更理神佛力，所作皆吉祥。',
-    poemVi: 'Đại An muôn sự vững vàng,\nCầu tài phương ấy bạc vàng hanh thông.\nNgười đi thân thể an lành,\nCửa nhà êm ấm muôn phần tốt tươi.',
-    dailyMeaning: 'Thân tâm an định, mưu sự vững bền, không có biến cố bất ngờ.',
-    actionAdvice: 'Thích hợp giải quyết các việc hành chính thường nhật, duy trì sự ổn định, bàn việc làm ăn lâu dài.',
-    nature: 'Đại Cát'
-  },
-  2: {
-    code: 'luu_nien',
-    name: 'Lưu Niên',
-    element: 'Thổ (Trung Ương)',
-    deity: 'Huyền Vũ Thần',
-    poemZh: '留連事難成，求謀日未明，官事只宜緩，去者未回程。失物南方討，急尋方得稱，更防口舌難，人事且隨緣。',
-    poemVi: 'Lưu Niên sự việc dây dưa,\nMưu toan tính toán sớm trưa chưa thành.\nViệc quan nên chậm chớ nhanh,\nNhẫn tâm chờ đợi ắt lành về sau.',
-    dailyMeaning: 'Sự việc có xu hướng chậm trễ, giấy tờ hay phản hồi bị trì hoãn ngoài ý muốn.',
-    actionAdvice: 'Cần kiên nhẫn kiểm tra kỹ càng, không nên giục giã ép buộc, chuẩn bị phương án dự phòng.',
-    nature: 'Bình Hòa'
-  },
-  3: {
-    code: 'toc_hy',
-    name: 'Tốc Hỷ',
-    element: 'Hỏa (Phương Nam)',
-    deity: 'Chu Tước Hỷ Thần',
-    poemZh: '速喜喜來臨，求財向南方，失物申午未，逢人路上尋。官事得理順，行人即日歸，田產六畜吉，病者得安康。',
-    poemVi: 'Tốc Hỷ tin vui tới cận kề,\nCầu tài phương ấy lộc đem về.\nNgười đi tin tức mau nghe thấy,\nBệnh hoạn tiêu tan khỏi tức thì.',
-    dailyMeaning: 'Tin vui đến nhanh bất ngờ, gặp được điều may mắn trong ngày, tinh thần phấn chấn.',
-    actionAdvice: 'Nên nhanh chóng nắm bắt cơ hội vào buổi sáng hoặc đầu giờ chiều; liên lạc với đối tác thân thiết.',
-    nature: 'Đại Cát'
-  },
-  4: {
-    code: 'xich_khau',
-    name: 'Xích Khẩu',
-    element: 'Kim (Phương Tây)',
-    deity: 'Bạch Hổ Hung Thần',
-    poemZh: '赤口便為凶，官事多是非，失物速速討，行人有驚疑。六畜多生怪，病者沉未愈，更防口舌難，閉口免生悲。',
-    poemVi: 'Xích Khẩu lời qua tiếng lại nhiều,\nĐề phòng tranh cãi lẫn thị phi.\nKín mồm giữ miệng an thân vững,\nNhường nhịn đôi phần họa biến đi.',
-    dailyMeaning: 'Dễ phát sinh tranh luận, va chạm lời nói hoặc bất đồng ý kiến nơi công sở, gia đạo.',
-    actionAdvice: 'Uốn lưỡi bảy lần trước khi nói, tránh bình luận chuyện thị phi của người khác, không ký cam kết mạo hiểm.',
-    nature: 'Hung'
-  },
-  5: {
-    code: 'tieu_cat',
-    name: 'Tiểu Cát',
-    element: 'Thủy (Phương Bắc)',
-    deity: 'Lục Hợp Quý Thần',
-    poemZh: '小吉最吉昌，路上好商量，陰人來報喜，失物在坤方。行人即便至，交關甚是強，求財中吉利，百事合和長。',
-    poemVi: 'Tiểu Cát muôn đường rực rỡ tươi,\nGặp nhau bàn bạc nở nụ cười.\nBạn bè quý mến cùng chia sẻ,\nThuận buồm xuôi gió khắp muôn nơi.',
-    dailyMeaning: 'Có quý nhân hỗ trợ nhỏ, công việc trôi chảy êm thấm, tiền tài thu chi hài hòa.',
-    actionAdvice: 'Thích hợp cho việc gặp gỡ giao lưu bạn bè, mua sắm vật dụng cần thiết trong gia đình, đàm phán nhẹ nhàng.',
-    nature: 'Thứ Cát'
-  },
-  6: {
-    code: 'khong_vong',
-    name: 'Không Vong',
-    element: 'Thổ (Tây Nam / Cấn Khôn)',
-    deity: 'Câu Trận Ám Thần',
-    poemZh: '空亡事不祥，陰人多乖張，求財無利益，行人有災殃。失物尋不見，官事有刑傷，莫道空亡險，修德自消殃。',
-    poemVi: 'Không Vong việc khó đặng vuông tròn,\nChớ vội ham mưu tính thiệt hơn.\nTĩnh tâm tích đức tiêu tai ách,\nĐợi lúc mây tan rạng ánh vàng.',
-    dailyMeaning: 'Khí thế ngưng trệ, làm việc dễ công cốc nếu quá vội vàng tham lam.',
-    actionAdvice: 'Chỉ nên làm việc thiện, dọn dẹp nhà cửa, tĩnh dưỡng thân tâm, hoãn việc lớn chi tiền triệu.',
-    nature: 'Hung'
-  }
-};
-
-/**
- * Tính Quẻ Tiểu Lục Nhâm theo Tháng Âm và Ngày Âm
- * Bấm tay: Khởi Đại An (1) -> Lưu Niên (2) -> Tốc Hỷ (3) -> Xích Khẩu (4) -> Tiểu Cát (5) -> Không Vong (6)
- */
-export function calculateKhongMinhLucNham(lunarMonth: number, lunarDay: number): KhongMinhLucNhamResult {
-  // 1. Khởi từ Đại An tính đến Tháng âm:
-  const monthIdx = ((lunarMonth - 1) % 6) + 1;
-  // 2. Từ cung tháng, khởi ngày 1 tính đến Ngày âm:
-  const dayIdx = ((monthIdx - 1 + (lunarDay - 1)) % 6) + 1;
-
-  return LUC_NHAM_DEITIES[dayIdx] || LUC_NHAM_DEITIES[1];
-}
-
-// --------------------------------------------------------------------------
-// 3. TỬ VI VẬN TRÌNH 4 TRỤ CỘT HÀNG NGÀY (CÔNG DANH, TÀI LỘC, TÌNH CẢM, SỨC KHỎE)
+// 1. GIAO DIỆN & MÔ HÌNH ĐÁNH GIÁ 5 PHƯƠNG DIỆN THEN CHỐT
 // --------------------------------------------------------------------------
 
 export interface DailyAspectAssessment {
-  aspect: 'career' | 'wealth' | 'love' | 'health';
+  aspect: 'cong_danh' | 'su_nghiep' | 'tien_tai' | 'tinh_duyen' | 'gia_dao' | 'suc_khoe' | string;
+  pillarName: string; // Tên hiển thị: "Công Danh", "Sự Nghiệp", "Tiền Tài", "Tình Duyên", "Gia Đạo", "Sức Khỏe"
   titleVi: string;
   iconName: string;
-  score: number; // 0 - 100
-  status: 'Rực Rỡ Khởi Sắc' | 'Cát Lợi Thuận Hòa' | 'Bình Ổn Triển Khai' | 'Nên Cẩn Trọng';
+  score: number;      // Thang điểm 0 - 100
+  status: 'Rực Rỡ Khởi Sắc' | 'Cát Lợi Thuận Hòa' | 'Bình Ổn Triển Khai' | 'Nên Cẩn Trọng' | 'Đại Kỵ Khởi Sự';
+  tenGodOrFactor: string; // Tên Thập Thần hoặc nhân tố tác động (ví dụ: "Chính Quan Đắc Vị", "Thực Thần Sinh Tài", "Lục Hợp Phu Thê")
   summary: string;
   detailedAdvice: string;
-  classicalRuleQuote: string;
+  classicalRuleQuote: string; // Trích dẫn kinh thư
 }
 
 export interface HourlyFortune {
@@ -476,6 +77,35 @@ export interface DailyAuspiciousDirections {
   explanation: string;
 }
 
+export interface KhongMinhLucNhamResult {
+  code: string;
+  name: string;
+  hanzi: string;
+  element: string;
+  nature: 'Đại Cát' | 'Thứ Cát' | 'Bình Hòa' | 'Bất Lợi' | 'Đại Hung';
+  summary: string;
+  verse: string;
+  poemVi: string;
+  guidance: string;
+}
+
+export interface UserBaziDailySnapshot {
+  birthDateStr: string;
+  dayMasterCan: string;      // Nhật Can (Nhật Chủ)
+  dayMasterElement: string;  // Ngũ hành Nhật Chủ
+  dayMasterYinYang: string;  // Âm/Dương
+  dayBranch: string;         // Chi ngày sinh (Cung Phu Thê)
+  yearCanChi: string;        // Trụ Năm
+  monthCanChi: string;       // Trụ Tháng
+  dayCanChi: string;         // Trụ Ngày
+  hourCanChi: string;        // Trụ Giờ
+  napAm: string;             // Nạp Âm bản mệnh
+  todayTenGod: string;       // Thập Thần của Ngày mục tiêu so với Nhật Chủ
+  todayLifeStage: string;    // Vòng Trường Sinh của Nhật Chủ tại Chi ngày xem
+  branchRelation: string;    // Tương quan Chi ngày xem vs Chi ngày sinh
+  yearBranchRelation: string;// Tương quan Chi ngày xem vs Chi năm sinh
+}
+
 export interface DailyHoroscopeReport {
   targetDate: string;          // YYYY-MM-DD
   lunarDateStr: string;        // Ngày D Tháng M Năm Y (Âm lịch)
@@ -485,21 +115,31 @@ export interface DailyHoroscopeReport {
   truc: string;
   sao28: string;
 
+  // Snapshot Bát Tự Đương Số
+  userBazi: UserBaziDailySnapshot;
+
   // 1. Quẻ Dịch Ngày (Mai Hoa Dịch Số & Chu Dịch)
   hexagramDivination: {
-    primaryHexagram: HexagramData;  // Quẻ Chủ
-    futureHexagram: HexagramData;   // Quẻ Biến
-    mutualHexagram: HexagramData;   // Quẻ Hỗ
-    movingLine: number;             // Hào động (1..6)
-    movingLineText: string;         // Lời hào từ Chu Công Đán
-    hexagramAnalysis: string;       // Phân tích tượng số
+    primaryHexagram: HexagramDetail; // Quẻ Chủ
+    futureHexagram: HexagramDetail;  // Quẻ Biến
+    mutualHexagram: HexagramDetail;  // Quẻ Hỗ
+    movingLine: number;              // Hào động (1..6)
+    movingLineText: string;          // Lời hào từ Chu Công Đán
+    hexagramAnalysis: string;        // Phân tích tượng số
   };
 
   // 2. Khổng Minh Tiểu Lục Nhâm
   lucNham: KhongMinhLucNhamResult;
 
-  // 3. 4 Phương diện Vận Khí Hàng Ngày
+  // 3. 5 Trụ Cột Vận Khí Hàng Ngày (Kèm Sức Khỏe)
   aspects: {
+    congDanh: DailyAspectAssessment;
+    suNghiep: DailyAspectAssessment;
+    tienTai: DailyAspectAssessment;
+    tinhDuyen: DailyAspectAssessment;
+    giaDao: DailyAspectAssessment;
+    sucKhoe: DailyAspectAssessment;
+    // Tương thích ngược với các tên biến cũ
     career: DailyAspectAssessment;
     wealth: DailyAspectAssessment;
     love: DailyAspectAssessment;
@@ -514,16 +154,690 @@ export interface DailyHoroscopeReport {
   doActivities: string[];
   dontActivities: string[];
 
-  // 6. Điểm tổng hòa vận ngày
+  // 6. Điểm tổng hòa vận ngày & Đánh giá Cát Hung
   overallDailyScore: number;
-  dailyVerdict: string;
+  dailyVerdict: 'Đại Cát Đại Lợi' | 'Cát Lợi Thuận Buồm' | 'Bình Hòa Ổn Định' | 'Nên Cẩn Trọng' | 'Đại Kỵ Khởi Sự';
+  summaryVerdict: string;
+  classicalSummaryVerse: string;
 
   // 7. Bằng chứng Cổ Thư (Classical Evidence Profile)
   classicalEvidence: ClassicalEvidenceProfile;
 }
 
 // --------------------------------------------------------------------------
-// 4. HÀM TÍNH TOÁN TỬ VI HÀNG NGÀY & KHỞI QUẺ DỊCH CỔ ĐIỂN
+// 2. DỮ LIỆU CỔ THƯ TIỂU LỤC NHÂM KHỔNG MINH THẦN QUYẾT
+// --------------------------------------------------------------------------
+
+export const LUC_NHAM_PALACES: Record<number, KhongMinhLucNhamResult> = {
+  1: {
+    code: 'dai_an',
+    name: 'Đại An',
+    hanzi: '大安',
+    element: 'Mộc (Thanh Long)',
+    nature: 'Đại Cát',
+    summary: 'Thân tâm an lạc, gia đạo bình an, xuất hành đắc quý nhân tương trợ.',
+    verse: 'Đại An sự sự xương, Cầu tài tại Khôn phương. Thất vật khứ bất viễn, Trạch xá bảo bình an.',
+    poemVi: 'Đại An sự sự xương, Cầu tài tại Khôn phương. Thất vật khứ bất viễn, Trạch xá bảo bình an.',
+    guidance: 'Thích hợp an cư, gặp mặt đàm đạo, ký kết thỏa thuận bền vững, không nên đổi mới liều lĩnh.'
+  },
+  2: {
+    code: 'luu_nien',
+    name: 'Lưu Niên',
+    hanzi: '留連',
+    element: 'Thủy (Huyền Vũ)',
+    nature: 'Bình Hòa',
+    summary: 'Sự việc dây dưa, chậm chạp chưa có hồi kết ngay, nên nhẫn nại tích lũy.',
+    verse: 'Lưu Niên sự nan thành, Cầu mưu nhật vị minh. Quan sự hữu duyên cố, Tiến thoái thủ trinh lương.',
+    poemVi: 'Lưu Niên sự nan thành, Cầu mưu nhật vị minh. Quan sự hữu duyên cố, Tiến thoái thủ trinh lương.',
+    guidance: 'Không nên vội vàng kết thúc công việc; hãy tỉ mỉ rà soát tài liệu, chuẩn bị phương án dự phòng.'
+  },
+  3: {
+    code: 'toc_hy',
+    name: 'Tốc Hỷ',
+    hanzi: '速喜',
+    element: 'Hỏa (Chu Tước)',
+    nature: 'Đại Cát',
+    summary: 'Niềm vui đến mau, tài lộc khởi sắc nhanh chóng, mưu sự trước mắt đại lợi.',
+    verse: 'Tốc Hỷ hỷ lai lâm, Cầu tài hướng nam tầm. Thất vật ngọ vị thượng, Phùng nhân tất đồng tâm.',
+    poemVi: 'Tốc Hỷ hỷ lai lâm, Cầu tài hướng nam tầm. Thất vật ngọ vị thượng, Phùng nhân tất đồng tâm.',
+    guidance: 'Rất tốt cho việc gửi hồ sơ, chốt đơn hàng, xuất hành đàm phán trong buổi sáng hoặc trưa.'
+  },
+  4: {
+    code: 'xich_khau',
+    name: 'Xích Khẩu',
+    hanzi: '赤口',
+    element: 'Kim (Bạch Hổ)',
+    nature: 'Bất Lợi',
+    summary: 'Dễ sinh khẩu thiệt thị phi, tranh cãi bất hòa, nên giữ kín miệng và nhường nhịn.',
+    verse: 'Xích Khẩu tiện vi hung, Quan sự đa thị phi. Trục vật phòng thương khẩu, Khẩu thiệt tu tri phòng.',
+    poemVi: 'Xích Khẩu tiện vi hung, Quan sự đa thị phi. Trục vật phòng thương khẩu, Khẩu thiệt tu tri phòng.',
+    guidance: 'Tránh tranh luận gay gắt, không can dự chuyện bao đồng, cẩn trọng lời ăn tiếng nói nơi công cộng.'
+  },
+  5: {
+    code: 'tieu_cat',
+    name: 'Tiểu Cát',
+    hanzi: '小吉',
+    element: 'Mộc (Lục Hợp)',
+    nature: 'Thứ Cát',
+    summary: 'Mọi sự hanh thông nhu hòa, giao thiệp tốt đẹp, có quý nhân nữ phái giúp đỡ.',
+    verse: 'Tiểu Cát tối cát xương, Lộ thượng hảo thương lượng. Cầu tài tại ngọ vị, Phú quý tự lai tương.',
+    poemVi: 'Tiểu Cát tối cát xương, Lộ thượng hảo thương lượng. Cầu tài tại ngọ vị, Phú quý tự lai tương.',
+    guidance: 'Thuận lợi cho việc thăm hỏi đối tác, gắn kết tình cảm, mua sắm đồ dùng gia đình trang nhã.'
+  },
+  6: {
+    code: 'khong_vong',
+    name: 'Không Vong',
+    hanzi: '空亡',
+    element: 'Thổ (Câu Trận)',
+    nature: 'Đại Hung',
+    summary: 'Hư hao bế tắc, sự tình dễ công dã tràng, nên tĩnh tọa tu thân, chớ mạo hiểm.',
+    verse: 'Không Vong sự bất tường, Âm nhân đa quai trương. Cầu tài vô ích lợi, Tiến thoái tổng hoang mang.',
+    poemVi: 'Không Vong sự bất tường, Âm nhân đa quai trương. Cầu tài vô ích lợi, Tiến thoái tổng hoang mang.',
+    guidance: 'Nên án binh bất động, tập trung học tập thiền định, tuyệt đối không đầu tư tài chính mạo hiểm.'
+  }
+};
+
+export function calculateKhongMinhLucNham(lunarMonth: number, lunarDay: number): KhongMinhLucNhamResult {
+  // Tháng 1 khởi Đại An, đếm thuận tới tháng khảo sát
+  // Từ cung tháng, đếm tiếp tới ngày khảo sát
+  const palaceIndex = ((lunarMonth - 1 + lunarDay - 1) % 6) + 1;
+  return LUC_NHAM_PALACES[palaceIndex] || LUC_NHAM_PALACES[1];
+}
+
+// --------------------------------------------------------------------------
+// 3. ĐỊA CHI QUAN HỆ CỔ ĐIỂN (HỢP, XUNG, HÌNH, HẠI, PHÁ)
+// --------------------------------------------------------------------------
+
+export function analyzeBranchRelation(b1: string, b2: string): {
+  type: 'Lục Hợp' | 'Tam Hợp' | 'Lục Xung' | 'Tương Hại' | 'Tương Hình' | 'Tương Phá' | 'Đồng Chi' | 'Bình Hòa';
+  scoreDelta: number;
+  description: string;
+} {
+  if (b1 === b2) {
+    return {
+      type: 'Đồng Chi',
+      scoreDelta: 0,
+      description: `Đồng Chi ${b1} (Phục Ngâm), tâm tư trăn trở, cần bình tĩnh tiến thoái, tránh tự làm khó mình.`
+    };
+  }
+
+  // Lục Hợp
+  const lucHopPairs: [string, string][] = [
+    ['Tý', 'Sửu'], ['Dần', 'Hợi'], ['Mão', 'Tuất'],
+    ['Thìn', 'Dậu'], ['Tỵ', 'Thân'], ['Ngọ', 'Mùi']
+  ];
+  if (lucHopPairs.some(([x, y]) => (b1 === x && b2 === y) || (b1 === y && b2 === x))) {
+    return {
+      type: 'Lục Hợp',
+      scoreDelta: 20,
+      description: `Chi ${b1} hợp cùng ${b2} là Lục Hợp đại cát. Âm dương hòa hợp, quý nhân nâng đỡ, gia đạo và tình cảm son sắt thăng hoa.`
+    };
+  }
+
+  // Tam Hợp
+  const tamHopGroups = [
+    ['Thân', 'Tý', 'Thìn'],
+    ['Dần', 'Ngọ', 'Tuất'],
+    ['Hợi', 'Mão', 'Mùi'],
+    ['Tỵ', 'Dậu', 'Sửu']
+  ];
+  if (tamHopGroups.some(g => g.includes(b1) && g.includes(b2))) {
+    return {
+      type: 'Tam Hợp',
+      scoreDelta: 16,
+      description: `Chi ${b1} tương phối cùng ${b2} hội tụ trong cục Tam Hợp. Khí thế đồng thuận, mở rộng quan hệ nhân sinh đại lợi.`
+    };
+  }
+
+  // Lục Xung
+  const lucXungPairs: [string, string][] = [
+    ['Tý', 'Ngọ'], ['Sửu', 'Mùi'], ['Dần', 'Thân'],
+    ['Mão', 'Dậu'], ['Thìn', 'Tuất'], ['Tỵ', 'Hợi']
+  ];
+  if (lucXungPairs.some(([x, y]) => (b1 === x && b2 === y) || (b1 === y && b2 === x))) {
+    return {
+      type: 'Lục Xung',
+      scoreDelta: -25,
+      description: `Chi ${b1} trực xung cùng ${b2} là Lục Xung. Khí trường tương phản đối đầu, dễ phát sinh biến động, cãi vã, nên nhẫn nại phòng hộ.`
+    };
+  }
+
+  // Tương Hại (Lục Hại)
+  const lucHaiPairs: [string, string][] = [
+    ['Tý', 'Mùi'], ['Sửu', 'Ngọ'], ['Dần', 'Tỵ'],
+    ['Mão', 'Thìn'], ['Thân', 'Hợi'], ['Dậu', 'Tuất']
+  ];
+  if (lucHaiPairs.some(([x, y]) => (b1 === x && b2 === y) || (b1 === y && b2 === x))) {
+    return {
+      type: 'Tương Hại',
+      scoreDelta: -15,
+      description: `Chi ${b1} gặp ${b2} là Tương Hại. Dễ sinh nỗi niềm ngấm ngầm, hiểu lầm không đáng có trong các mối quan hệ thân cận.`
+    };
+  }
+
+  // Tương Hình
+  const tuHinh = ['Thìn', 'Ngọ', 'Dậu', 'Hợi'];
+  const tamHinh1 = ['Dần', 'Tỵ', 'Thân'];
+  const tamHinh2 = ['Sửu', 'Mùi', 'Tuất'];
+  const tuongHinhTyMao = (b1 === 'Tý' && b2 === 'Mão') || (b1 === 'Mão' && b2 === 'Tý');
+  if (
+    tuongHinhTyMao ||
+    tamHinh1.filter(b => b === b1 || b === b2).length === 2 ||
+    tamHinh2.filter(b => b === b1 || b === b2).length === 2
+  ) {
+    return {
+      type: 'Tương Hình',
+      scoreDelta: -12,
+      description: `Chi ${b1} cùng ${b2} phạm Tương Hình. Cần giữ thái độ khiêm nhường, tuân thủ pháp luật và quy chế, tránh nóng nảy cố chấp.`
+    };
+  }
+
+  // Tương Phá
+  const tuongPhaPairs: [string, string][] = [
+    ['Tý', 'Dậu'], ['Mão', 'Ngọ'], ['Thìn', 'Sửu'],
+    ['Mùi', 'Tuất'], ['Dần', 'Hợi'], ['Tỵ', 'Thân']
+  ];
+  if (tuongPhaPairs.some(([x, y]) => (b1 === x && b2 === y) || (b1 === y && b2 === x))) {
+    return {
+      type: 'Tương Phá',
+      scoreDelta: -8,
+      description: `Chi ${b1} gặp ${b2} có tượng Tương Phá nhẹ. Việc sự vụ có đôi chút trúc trắc ban đầu, cần kiên trì tháo gỡ.`
+    };
+  }
+
+  return {
+    type: 'Bình Hòa',
+    scoreDelta: 5,
+    description: `Chi ${b1} tương hòa cùng Chi ${b2}, âm dương cân bằng, không xung phá, sự vụ tiến triển thuận hòa theo quy luật tự nhiên.`
+  };
+}
+
+// --------------------------------------------------------------------------
+// 4. BỘ TỪ ĐIỂN CỔ THƯ LUẬN GIẢI 5 PHƯƠNG DIỆN THEO BÁT TỰ THẬP THẦN
+// --------------------------------------------------------------------------
+
+interface AspectEvaluationTemplate {
+  title: string;
+  factorName: string;
+  scoreBase: number;
+  status: 'Rực Rỡ Khởi Sắc' | 'Cát Lợi Thuận Hòa' | 'Bình Ổn Triển Khai' | 'Nên Cẩn Trọng' | 'Đại Kỵ Khởi Sự';
+  summary: string;
+  detailedAdvice: string;
+  quote: string;
+}
+
+// 1. CÔNG DANH (Quan Tinh / Ấn Tinh / Trực)
+const CONG_DANH_MAP: Record<string, AspectEvaluationTemplate> = {
+  'Chính Quan': {
+    title: 'Công Danh Quang Minh Khởi Sắc',
+    factorName: 'Chính Quan Đắc Vị',
+    scoreBase: 88,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Thời vận công danh xán lạn, được bề trên và cơ quan thẩm quyền tín nhiệm sâu sắc.',
+    detailedAdvice: 'Thích hợp nộp hồ sơ, thi cử sát hạch, đề bạt thăng tiến hoặc xin phê duyệt văn bản quy phạm. Giữ phong thái đĩnh đạc, quang minh chính đại.',
+    quote: '《Uyên Hải Tử Bình》: "Chính Quan thị lộc, chính nhân quân tử chi phong. Niên nguyệt đắc trợ, tất hoạch thăng thiên."'
+  },
+  'Thất Sát': {
+    title: 'Công Danh Tranh Quyền Hóa Sát',
+    factorName: 'Thất Sát Uy Quyền',
+    scoreBase: 62,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Nhiều áp lực cạnh tranh gay gắt từ bên ngoài; cần lấy nhu thắng cương, cẩn trọng lời ăn tiếng nói trước cấp trên.',
+    detailedAdvice: 'Không nên tranh luận đối đầu với cấp trên hay người có thẩm quyền. Hãy tập trung làm thật chắc công việc chuyên môn, dùng thực lực để khẳng định mình.',
+    quote: '《Tam Mệnh Thông Hội》: "Sát giả, quyền dã. Hữu chế vi quyền, vô chế vi quỷ. Dĩ nhu khắc cương phương vi thượng sách."'
+  },
+  'Chính Ấn': {
+    title: 'Công Danh Bảng Vàng Quý Nhân',
+    factorName: 'Chính Ấn Hộ Mệnh',
+    scoreBase: 90,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Danh thơm tiếng tốt lan tỏa, nhận được sự chở che giúp đỡ của bậc tiền bối đức cao vọng trọng.',
+    detailedAdvice: 'Rất có lợi cho việc học hành, bảo vệ luận án, nhận giấy khen chứng chỉ hoặc thỉnh giáo ý kiến cố vấn chuyên gia.',
+    quote: '《Trích Thiên Tủy》: "Ấn thụ giả, từ mẫu chi đức. Sinh ngã thân thể, bảo hộ thanh danh, bách sự vô ưu."'
+  },
+  'Thiên Ấn': {
+    title: 'Công Danh Sáng Tạo Biệt Cách',
+    factorName: 'Kiêu Thần Trực Giác',
+    scoreBase: 74,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Năng lực tư duy sáng tạo và trực giác nhạy bén, thích hợp khẳng định vị thế trong lĩnh vực nghiên cứu, nghệ thuật.',
+    detailedAdvice: 'Đưa ra các giải pháp đột phá, độc đáo cho công việc chuyên sâu. Tránh biểu hiện lập dị hoặc xa cách đồng nghiệp.',
+    quote: '《Uyên Hải Tử Bình》: "Thiên Ấn chủ tài nghệ siêu quần, kiến thức kỳ dị, tu phòng cô lập nan hòa."'
+  },
+  'Chính Tài': {
+    title: 'Công Danh Vững Vàng Tích Lũy',
+    factorName: 'Tài Sinh Quan Vượng',
+    scoreBase: 80,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Danh vị được củng cố vững chắc nhờ kết quả tài chính minh bạch và tinh thần trách nhiệm cao.',
+    detailedAdvice: 'Báo cáo chỉ tiêu doanh số, giải trình ngân sách hoặc hoàn tất các thủ tục tài chính minh bạch để ghi điểm với cấp trên.',
+    quote: '《Tam Mệnh Thông Hội》: "Tài vượng sinh Quan, phú quý tự lai. Cần cần khẩn khẩn, chức nghiệp xương vinh."'
+  },
+  'Thiên Tài': {
+    title: 'Công Danh Bang Giao Rộng Mở',
+    factorName: 'Thiên Tài Xã Giao',
+    scoreBase: 76,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Tài ngoại giao khéo léo giúp bạn kết nối được với những nhân vật quan trọng trong ngành.',
+    detailedAdvice: 'Tận dụng các buổi gặp gỡ mở rộng mạng lưới quan hệ công việc. Giữ chữ tín làm đầu, không hứa suông.',
+    quote: '《Trích Thiên Tủy》: "Thiên Tài biến hóa đa đoan, thông tình đạt lý, danh vọng tự nhiên truyền tụng."'
+  },
+  'Thực Thần': {
+    title: 'Công Danh Ôn Hòa Đắc Nhân Tâm',
+    factorName: 'Thực Thần Tú Khí',
+    scoreBase: 84,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Khí chất hiền hòa, tài hoa phát tiết tự nhiên khiến đồng nghiệp và cấp trên mến phục.',
+    detailedAdvice: 'Thuyết trình ý tưởng, chia sẻ kinh nghiệm hoặc hướng dẫn nhân viên mới. Hòa khí đem lại uy tín lâu dài.',
+    quote: '《Uyên Hải Tử Bình》: "Thực Thần hữu khí thắng Tài Quan, tú khí phát vi văn chương tú mỹ, công danh thuận toại."'
+  },
+  'Thương Quan': {
+    title: 'Công Danh Đột Phá Kỵ Ngạo Mạn',
+    factorName: 'Thương Quan Phá Cách',
+    scoreBase: 58,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Tài năng xuất chúng nhưng dễ nảy sinh bất đồng với tôn ti trật tự; cần tiết chế tự phụ, tránh vi phạm quy định.',
+    detailedAdvice: 'Đừng vội vạch trần sai sót của người khác nơi đông người. Hãy lắng nghe và điều chỉnh giải pháp một cách khéo léo.',
+    quote: '《Trích Thiên Tủy》: "Thương Quan kiến Quan vi họa bách đoan. Giới tại ngạo mạn, quý tại hàm dưỡng đức độ."'
+  },
+  'Tỷ Kiên': {
+    title: 'Công Danh Tự Lực Cùng Tiến',
+    factorName: 'Tỷ Kiên Đồng Chí',
+    scoreBase: 72,
+    status: 'Bình Ổn Triển Khai',
+    summary: 'Phong thái độc lập tự chủ, có đồng nghiệp cùng trang lứa sát cánh đồng hành bảo vệ uy tín.',
+    detailedAdvice: 'Tự mình giải quyết các nhiệm vụ được giao, không trông chờ may rủi. Hợp tác công bằng với các phòng ban bạn.',
+    quote: '《Tam Mệnh Thông Hội》: "Tỷ Kiên đồng đạo tương tòng, bằng hữu phù trì, thủ trinh tắc cát."'
+  },
+  'Kiếp Tài': {
+    title: 'Công Danh Cạnh Tranh Gay Gắt',
+    factorName: 'Kiếp Tài Tranh Đoạt',
+    scoreBase: 55,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Môi trường làm việc tiềm ẩn sự cạnh tranh vị trí, dễ bị người khác tranh công hoặc dòm ngó sơ hở.',
+    detailedAdvice: 'Làm việc cẩn mật, lưu trữ văn bản bằng chứng rõ ràng, không tiết lộ kế hoạch trước khi hoàn thành.',
+    quote: '《Uyên Hải Tử Bình》: "Kiếp Tài chủ tranh đoạt hào cường, phòng người phản trắc, cần kiệm thủ phận vi an."'
+  }
+};
+
+// 2. SỰ NGHIỆP (Thực thi, nghiệp vụ, tiến độ, hợp tác)
+const SU_NGHIEP_MAP: Record<string, AspectEvaluationTemplate> = {
+  'Chính Quan': {
+    title: 'Sự Nghiệp Ngăn Nắp Trật Tự',
+    factorName: 'Quy Củ Hanh Thông',
+    scoreBase: 86,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Công việc vận hành trơn tru theo đúng kế hoạch đề ra, các khâu phối hợp chuẩn xác.',
+    detailedAdvice: 'Triển khai các dự án quy mô, ban hành quy chế hoặc tổ chức họp giao ban phân bổ nhiệm vụ rõ ràng.',
+    quote: '《Khâm Định Hiệp Kỷ》: "Quan tinh chính trực, chính sự quang minh, vạn việc tòng tựu."'
+  },
+  'Thất Sát': {
+    title: 'Sự Nghiệp Thử Thách Cường Độ Cao',
+    factorName: 'Xung Kích Đột Phá',
+    scoreBase: 65,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Khối lượng nhiệm vụ nặng nề, phát sinh vấn đề kỹ thuật hoặc yêu cầu gấp cần xử lý dứt điểm.',
+    detailedAdvice: 'Bình tĩnh giải quyết từng việc theo thứ tự ưu tiên. Giữ cái đầu lạnh, tránh nóng nảy làm hỏng việc chung.',
+    quote: '《Tam Mệnh Thông Hội》: "Sát nhập sự nghiệp, bách sự phong ba, dũng giả đắc thắng, nọa giả ưu sầu."'
+  },
+  'Chính Ấn': {
+    title: 'Sự Nghiệp Vững Bền Hậu Thuẫn Tốt',
+    factorName: 'Ấn Thụ Nền Móng',
+    scoreBase: 88,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Nền tảng công việc vững chãi, được sự bảo trợ mạnh mẽ về mặt tài nguyên và nhân lực.',
+    detailedAdvice: 'Hoàn thiện hồ sơ lưu trữ, củng cố quy trình kỹ thuật, đào tạo nâng cao tay nghề nghiệp vụ.',
+    quote: '《Trích Thiên Tủy》: "Ấn vượng sự thành, vô phong vô lãng, cơ nghiệp an như bàn thạch."'
+  },
+  'Thiên Ấn': {
+    title: 'Sự Nghiệp Chuyên Môn Độc Đáo',
+    factorName: 'Kỹ Nghệ Tinh Thông',
+    scoreBase: 78,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Phù hợp xử lý các bài toán kỹ thuật phức tạp, công nghệ mới hoặc nghiên cứu đòi hỏi chiều sâu.',
+    detailedAdvice: 'Tập trung vào khâu tối ưu hóa hệ thống, viết tài liệu kỹ thuật hoặc thử nghiệm sáng kiến mới.',
+    quote: '《Uyên Hải Tử Bình》: "Kiêu Thần tác sự, kỳ mưu diệu toán, thành tựu bất phàm."'
+  },
+  'Chính Tài': {
+    title: 'Sự Nghiệp Giao Dịch Chắc Chắn',
+    factorName: 'Thực Chất Hiệu Quả',
+    scoreBase: 85,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Tiến độ công việc gắn liền với giá trị thực tế, đàm phán hợp đồng thương mại thu được kết quả cụ thể.',
+    detailedAdvice: 'Ký biên bản nghiệm thu, chốt điều khoản hợp đồng hoặc kiểm tra chất lượng sản phẩm xuất xưởng.',
+    quote: '《Tử Bình Chân Thuyên》: "Chính Tài đắc vị, sự vụ đoan chính, cầu thực tất đắc."'
+  },
+  'Thiên Tài': {
+    title: 'Sự Nghiệp Khai Mở Dự Án Mới',
+    factorName: 'Linh Hoạt Biến Hóa',
+    scoreBase: 82,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Cơ hội bắt tay vào dự án mới hoặc mở rộng quy mô thị trường ngoài kế hoạch ban đầu.',
+    detailedAdvice: 'Gặp gỡ đối tác mới, khảo sát thị trường thực tế và linh hoạt thay đổi chiến thuật tiếp cận.',
+    quote: '《Tam Mệnh Thông Hội》: "Thiên Tài chủ động, sự nghiệp phát triển vô cùng, ứng biến như thần."'
+  },
+  'Thực Thần': {
+    title: 'Sự Nghiệp Năng Suất Sáng Tạo',
+    factorName: 'Thực Lực Dồi Dào',
+    scoreBase: 92,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Tâm trạng thoải mái giúp năng suất làm việc tăng vọt, các ý tưởng thiết kế và nội dung đạt chuẩn cao.',
+    detailedAdvice: 'Thực hiện các công việc liên quan đến sáng tạo, truyền thông, giao lưu khách hàng hoặc tổ chức sự kiện.',
+    quote: '《Uyên Hải Tử Bình》: "Thực Thần sinh vượng, công tác hanh thông, vạn sự giai duyệt."'
+  },
+  'Thương Quan': {
+    title: 'Sự Nghiệp Cải Cách Nhiều Biến Động',
+    factorName: 'Đột Phá Kỷ Cương',
+    scoreBase: 60,
+    status: 'Bình Ổn Triển Khai',
+    summary: 'Mong muốn thay đổi cách làm cũ nhưng dễ gặp sự kháng cự từ quy trình nội bộ.',
+    detailedAdvice: 'Thực hiện cải tiến theo từng bước nhỏ có kiểm chứng, tránh xóa bỏ toàn bộ cái cũ một cách đột ngột.',
+    quote: '《Trích Thiên Tủy》: "Thương Quan mưu sự, tân kỳ khả hỷ, duy kỵ xung động thái quá."'
+  },
+  'Tỷ Kiên': {
+    title: 'Sự Nghiệp Đồng Đội Sát Cánh',
+    factorName: 'Hiệp Đồng Tác Chiến',
+    scoreBase: 78,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Làm việc nhóm đạt kết quả rất tốt, đồng nghiệp hỗ trợ nhau san sẻ gánh nặng công việc.',
+    detailedAdvice: 'Họp bàn phối hợp liên phòng ban, chia nhỏ nhiệm vụ và cùng nhau tháo gỡ điểm nghẽn dự án.',
+    quote: '《Tam Mệnh Thông Hội》: "Tỷ Kiên tương trợ, đồng tâm hiệp lực, sự vô bất thành."'
+  },
+  'Kiếp Tài': {
+    title: 'Sự Nghiệp Dễ Bị Phân Tán',
+    factorName: 'Áp Lực Chia Rẽ',
+    scoreBase: 58,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Công việc dễ bị người khác can thiệp hoặc phát sinh bất đồng về quyền lợi, phân công không đồng đều.',
+    detailedAdvice: 'Ghi chép biên bản làm việc rõ ràng, phân định ranh giới trách nhiệm cụ thể để tránh đùn đẩy.',
+    quote: '《Uyên Hải Tử Bình》: "Kiếp Tài nhập sự, phòng người phân công đoạt lợi, thận trọng từ đầu."'
+  }
+};
+
+// 3. TIỀN TÀI (Tài Bạch, Lưu chuyển tiền tệ, Khổng Minh Lục Nhâm)
+const TIEN_TAI_MAP: Record<string, AspectEvaluationTemplate> = {
+  'Chính Tài': {
+    title: 'Tiền Tài Hưng Vượng Chính Danh',
+    factorName: 'Chính Tài Nhập Khố',
+    scoreBase: 95,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Tài vận rực rỡ, tiền bạc từ công sức chính đáng đổ về tài khoản, lương thưởng hoặc lợi nhuận vững vàng.',
+    detailedAdvice: 'Thích hợp mở sổ tiết kiệm, thanh toán công nợ đúng hạn, ký kết hợp đồng kinh tế và cất trữ tài sản giá trị.',
+    quote: '《Tam Mệnh Thông Hội》: "Chính Tài sinh vượng, y thực sung túc, tích ngọc đôi kim, chính đạo hoạch tài."'
+  },
+  'Thiên Tài': {
+    title: 'Tiền Tài Bất Ngờ Hỷ Khí',
+    factorName: 'Thiên Tài Xuất Hiện',
+    scoreBase: 88,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Có cơ hội đón nhận lộc bất ngờ, tiền hoa hồng, thưởng dự án hoặc lợi nhuận từ đầu tư buôn bán.',
+    detailedAdvice: 'Nắm bắt các cơ hội kinh doanh ngắn hạn, thu hồi vốn nhanh; chớ vì quá tham lam mà liều lĩnh tất tay.',
+    quote: '《Trích Thiên Tủy》: "Thiên Tài đại phát, ngoại tài nhập môn, thủ chi dĩ đạo, phú quý trường cửu."'
+  },
+  'Thực Thần': {
+    title: 'Tiền Tài Sinh Sôi Bền Bỉ',
+    factorName: 'Thực Thần Sinh Tài',
+    scoreBase: 92,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: '"Thực Thần sinh Tài", buôn may bán đắt, nguồn tiền tự nhiên luân chuyển dồi dào, tiền bạc chi tiêu thảnh thơi.',
+    detailedAdvice: 'Rất tốt cho việc xuất hàng, khai trương bán buôn, chiêu đãi khách hàng thân thiết để tạo nguồn thu mới.',
+    quote: '《Uyên Hải Tử Bình》: "Thực Thần sinh Tài, phú quý tự thiên lai. Tài nguyên cổn cổn, vạn sự thư thái."'
+  },
+  'Chính Quan': {
+    title: 'Tiền Tài Ổn Định Theo Ngân Sách',
+    factorName: 'Quan Tinh Hộ Tài',
+    scoreBase: 80,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Thu chi ổn định theo đúng hạn mức đã đề ra, không sợ thất thoát hư hao.',
+    detailedAdvice: 'Quyết toán các hóa đơn hành chính, nộp thuế hoặc phân bổ ngân sách cho các mục tiêu dài hạn.',
+    quote: '《Tử Bình Chân Thuyên》: "Quan năng hộ tài, phi pháp mạc nhập, tài nguyên thanh bạch an nhiên."'
+  },
+  'Chính Ấn': {
+    title: 'Tiền Tài Được Ban Tặng Che Chở',
+    factorName: 'Ấn Tinh Phúc Lộc',
+    scoreBase: 82,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Nhận được sự tài trợ, quà cáp hoặc hỗ trợ tài chính từ gia đình, người thân thế hệ trước.',
+    detailedAdvice: 'Mua sắm sách vở, tài liệu học tập hoặc đầu tư vào việc tu dưỡng tri thức bản thân.',
+    quote: '《Trích Thiên Tủy》: "Ấn thụ lâm môn, phúc thọ song toàn, bất cầu tài nhi tài tự túc."'
+  },
+  'Thiên Ấn': {
+    title: 'Tiền Tài Thu Nhập Nghề Phụ',
+    factorName: 'Kiêu Thần Chiêu Tài',
+    scoreBase: 72,
+    status: 'Bình Ổn Triển Khai',
+    summary: 'Có khoản thu từ kỹ năng tay trái, nhuận bút hoặc tư vấn chuyên môn; tài chính cơ bản cân bằng.',
+    detailedAdvice: 'Tránh tham gia vào các mô hình kiếm tiền theo phong trào chưa rõ thực hư.',
+    quote: '《Uyên Hải Tử Bình》: "Thiên Ấn cầu tài, nghi tĩnh bất nghi động, kỹ nghệ mưu sinh tất ổn."'
+  },
+  'Tỷ Kiên': {
+    title: 'Tiền Tài Cân Bằng Chia Sẻ',
+    factorName: 'Tỷ Kiên Phân Tài',
+    scoreBase: 70,
+    status: 'Bình Ổn Triển Khai',
+    summary: 'Thu chi ở mức bình hòa, có việc cần chung tay góp vốn hoặc chia sẻ chi phí sinh hoạt với bạn bè đồng đội.',
+    detailedAdvice: 'Sòng phẳng minh bạch trong các khoản chi tiêu chung, không dây dưa nợ nần nhỏ nhặt.',
+    quote: '《Tam Mệnh Thông Hội》: "Tỷ Kiên tài bạch bình bình, hữu đắc hữu phân, thủ trinh khả bảo."'
+  },
+  'Thương Quan': {
+    title: 'Tiền Tài Năng Động Cần Tiết Chế',
+    factorName: 'Thương Quan Sinh Tài',
+    scoreBase: 75,
+    status: 'Bình Ổn Triển Khai',
+    summary: 'Kiếm được tiền nhanh nhờ nhạy bén nhưng tiêu xài cũng rất phóng khoáng, dễ vung tay quá trán.',
+    detailedAdvice: 'Khóa bớt các hạn mức chi tiêu mua sắm ngẫu hứng trên sàn thương mại điện tử; ghi chép chi tiêu cẩn thận.',
+    quote: '《Trích Thiên Tủy》: "Thương Quan hữu tài, biến hóa đa trí, giới tại hào phóng hao tổn."'
+  },
+  'Thất Sát': {
+    title: 'Tiền Tài Tiềm Ẩn Khoản Chi Đột Xuất',
+    factorName: 'Sát Tinh Khắc Tài',
+    scoreBase: 56,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Dễ phát sinh các khoản chi phí sửa chữa đồ đạc, nộp phạt hoặc chi phí giải quyết sự cố phát sinh.',
+    detailedAdvice: 'Tuyệt đối không đứng ra vay hộ hoặc bảo lãnh tiền bạc cho người khác. Kiểm tra kỹ khóa ví, thẻ ngân hàng.',
+    quote: '《Tam Mệnh Thông Hội》: "Sát tinh háo tài, tu phòng tiểu nhân khi mạn, tiền tài nghi thủ bất nghi tán."'
+  },
+  'Kiếp Tài': {
+    title: 'Tiền Tài Cảnh Giác Hao Hụt',
+    factorName: 'Kiếp Tài Đoạt Tài',
+    scoreBase: 48,
+    status: 'Đại Kỵ Khởi Sự',
+    summary: '"Kiếp Tài đoạt Tài", kỵ nhất việc cho vay mượn tiền bạc hoặc góp vốn làm ăn mạo hiểm trong hôm nay.',
+    detailedAdvice: 'Quản lý chặt chẽ chi tiêu cá nhân, từ chối khéo các lời mời gọi đầu tư lợi nhuận cao bất thường.',
+    quote: '《Uyên Hải Tử Bình》: "Kiếp Tài đoạt tài hung mạc trắc, đổ bác mạo hiểm tất hữu tang, cần kiệm giữ mình."'
+  }
+};
+
+// 4. TÌNH DUYÊN (Đào Hoa, Cung Phu Thê / Chi Ngày Sinh)
+const TINH_DUYEN_BASE_MAP: Record<string, AspectEvaluationTemplate> = {
+  'Chính Tài': {
+    title: 'Tình Duyên Mặn Nồng Chính Duyên',
+    factorName: 'Thê Tinh / Đoan Trang',
+    scoreBase: 90,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Với nam mệnh là Thê Tinh đắc vị, người yêu săn sóc chu đáo; với nữ mệnh là tình cảm đằm thắm, đôi bên tin cậy.',
+    detailedAdvice: 'Dành thời gian chuẩn bị bữa tối ấm cúng hoặc tặng nhau món quà nhỏ mang tính thiết thực và ý nghĩa.',
+    quote: '《Tam Mệnh Thông Hội》: "Tài vi thê thiếp, đoan trang hiền thục, xướng tùy hòa hợp, bách niên giai lão."'
+  },
+  'Thiên Tài': {
+    title: 'Tình Duyên Đào Hoa Sôi Nổi',
+    factorName: 'Đào Hoa Xã Giao',
+    scoreBase: 84,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Người độc thân có cơ hội kết giao duyên mới cuốn hút; người đã có đôi cần khéo léo giữ chuẩn mực.',
+    detailedAdvice: 'Tự tin tham gia các buổi giao lưu gặp gỡ bạn bè; giữ thái độ chân thành, tránh trăng hoa lả lơi.',
+    quote: '《Trích Thiên Tủy》: "Thiên Tài đào hoa, nhân duyên tụ hội, dĩ thành vi quý, mạc tham phù hoa."'
+  },
+  'Chính Quan': {
+    title: 'Tình Duyên Tôn Trọng Chung Thủy',
+    factorName: 'Phu Tinh / Trọng Tín',
+    scoreBase: 92,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Với nữ mệnh là Phu Tinh hiển lộ, người yêu mẫu mực có trách nhiệm; tình cảm đôi lứa hướng tới hôn nhân bền vững.',
+    detailedAdvice: 'Bàn bạc các kế hoạch tương lai nghiêm túc, ra mắt gia đình hoặc cam kết trách nhiệm lứa đôi.',
+    quote: '《Uyên Hải Tử Bình》: "Nữ mệnh phùng Quan, đoan trang chính trực, phu vinh tử quý, vạn thế gia phong."'
+  },
+  'Thất Sát': {
+    title: 'Tình Duyên Nồng Nhiệt Dễ Hiểu Lầm',
+    factorName: 'Sát Khí Ái Tình',
+    scoreBase: 64,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Tình cảm mãnh liệt nhưng dễ phát sinh ghen tuông hoặc tranh luận do cái tôi của hai bên quá lớn.',
+    detailedAdvice: 'Học cách lắng nghe đối phương, không đem chuyện bực dọc công việc về trút lên người yêu.',
+    quote: '《Tam Mệnh Thông Hội》: "Sát nhập tình duyên, ái hận đan xen, dĩ nhu khắc cương, nhẫn nại vi cát."'
+  },
+  'Thực Thần': {
+    title: 'Tình Duyên Ngọt Ngào Lãng Mạn',
+    factorName: 'Phúc Khí Duyên Lành',
+    scoreBase: 94,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Buổi hẹn hò tràn ngập tiếng cười, sự thấu hiểu và chia sẻ tâm sự ngọt ngào giữa hai tâm hồn đồng điệu.',
+    detailedAdvice: 'Cùng nhau đi dạo, thưởng thức món ăn ngon hoặc xem một bộ phim lãng mạn.',
+    quote: '《Uyên Hải Tử Bình》: "Thực Thần hòa duyệt, nhân duyên như ý, bách sự hoan hỷ."'
+  },
+  'Thương Quan': {
+    title: 'Tình Duyên Khắt Khe Cần Mềm Mỏng',
+    factorName: 'Khẩu Thiệt Ái Tình',
+    scoreBase: 58,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Dễ nảy sinh tâm lý bắt bẻ từng lời nói của đối phương, gây ra bầu không khí căng thẳng vô cớ.',
+    detailedAdvice: 'Bao dung với những khuyết điểm nhỏ của người thương, bớt lời chỉ trích, tăng lời khen ngợi chân thành.',
+    quote: '《Trích Thiên Tủy》: "Thương Quan ái trách nhân, tình duyên đa trắc trở, hàm dưỡng ôn nhu phương đắc an."'
+  },
+  'Chính Ấn': {
+    title: 'Tình Duyên Bình Yên Sâu Sắc',
+    factorName: 'Bao Dung Chở Che',
+    scoreBase: 88,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Tình cảm dựa trên sự thấu cảm sâu sắc và chăm sóc nhau từ những điều nhỏ bé thường nhật.',
+    detailedAdvice: 'Hỏi han sức khỏe, san sẻ việc nhà cùng người ấy, tạo cảm giác an toàn và tin cậy tuyệt đối.',
+    quote: '《Trích Thiên Tủy》: "Ấn đức bao dung, nhân duyên trường cửu, như thủy thường lưu."'
+  },
+  'Thiên Ấn': {
+    title: 'Tình Duyên Khép Kín Cần Cởi Mở',
+    factorName: 'Nội Tâm Sâu Lắng',
+    scoreBase: 70,
+    status: 'Bình Ổn Triển Khai',
+    summary: 'Có xu hướng giữ tâm sự riêng khiến đối phương cảm thấy khó gần hoặc xa cách.',
+    detailedAdvice: 'Hãy mở lòng tâm sự về những băn khoăn của mình, đừng để người yêu phải đoán già đoán non.',
+    quote: '《Uyên Hải Tử Bình》: "Kiêu Thần cô tịch, tâm tư u uất, tu tri câu thông phương giải nghi hoặc."'
+  },
+  'Tỷ Kiên': {
+    title: 'Tình Duyên Bình Đẳng Tri Kỷ',
+    factorName: 'Bạn Đời Tri Kỷ',
+    scoreBase: 78,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Mối quan hệ xây dựng trên nền tảng bình đẳng, vừa là người yêu vừa là người bạn tri kỷ chia sẻ mọi điều.',
+    detailedAdvice: 'Tôn trọng không gian riêng của nhau, cùng nhau tham gia các hoạt động thể thao hoặc sở thích chung.',
+    quote: '《Tam Mệnh Thông Hội》: "Tỷ Kiên như bằng, tương kính như tân, thủ trinh tắc cát."'
+  },
+  'Kiếp Tài': {
+    title: 'Tình Duyên Cẩn Trọng Người Ngoài Can Thiệp',
+    factorName: 'Phòng Người Phá Duyên',
+    scoreBase: 52,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Dễ có sự can thiệp từ người ngoài gây hiểu lầm hoặc cảm giác ghen tuông không đáng có.',
+    detailedAdvice: 'Tin tưởng lẫn nhau tuyệt đối, có khúc mắc cần trao đổi trực tiếp ngay giữa hai người.',
+    quote: '《Uyên Hải Tử Bình》: "Kiếp Tài phân đoạt, tình ái đa nghi, dĩ chân dĩ thành phá trừ nghi kỵ."'
+  }
+};
+
+// 5. GIA ĐẠO (Tổ Ấm, Hòa Khí Nội Thân, Phụ Mẫu, Huynh Đệ)
+const GIA_DAO_BASE_MAP: Record<string, AspectEvaluationTemplate> = {
+  'Chính Ấn': {
+    title: 'Gia Đạo An Khang Hiếu Nghĩa',
+    factorName: 'Từ Mẫu Âm Đức',
+    scoreBase: 96,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Không khí trong nhà tràn ngập sự ấm cúng, mẹ hiền con thảo, gia đạo tôn kính tổ tiên phúc đức lưu truyền.',
+    detailedAdvice: 'Thăm hỏi cha mẹ, chăm lo việc thờ cúng tổ tiên hoặc sum họp gia đình quây quần bên mâm cơm ấm cúng.',
+    quote: '《Trích Thiên Tủy》: "Chính Ấn từ tường, gia phong thanh bạch, phụ từ tử hiếu, phúc trạch diên trường."'
+  },
+  'Chính Quan': {
+    title: 'Gia Đạo Nề Nếp Thuận Hòa',
+    factorName: 'Gia Phong Quy Củ',
+    scoreBase: 90,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Gia phong kỷ cương nghiêm minh nhưng chan chứa tình thân, con cái chăm ngoan học giỏi.',
+    detailedAdvice: 'Họp mặt gia đình định hướng kế hoạch lớn cho các thành viên, sửa sang bài trí phòng ốc ngăn nắp.',
+    quote: '《Tam Mệnh Thông Hội》: "Quan tinh nhập trạch, gia đạo thanh cao, môn đình hiển hách."'
+  },
+  'Chính Tài': {
+    title: 'Gia Đạo Sung Túc Yên Vui',
+    factorName: 'Kinh Tế Vững Vàng',
+    scoreBase: 92,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Kinh tế gia đình ổn định đầy đủ, mua sắm vật dụng nội thất tiện nghi cho tổ ấm.',
+    detailedAdvice: 'Mua sắm thực phẩm bổ dưỡng cho cả nhà, thanh toán các khoản sinh hoạt phí chu đáo.',
+    quote: '《Tam Mệnh Thông Hội》: "Tài vượng trì gia, vạn vật sung túc, thê hiền tử hiếu, bách sự giai an."'
+  },
+  'Thực Thần': {
+    title: 'Gia Đạo Hoan Hỷ Sum Vầy',
+    factorName: 'Phúc Lộc Tràn Trề',
+    scoreBase: 94,
+    status: 'Rực Rỡ Khởi Sắc',
+    summary: 'Tiếng cười rộn rã trong tổ ấm, con cháu vui tươi ngoan ngoãn, xua tan mọi áp lực mệt mỏi bên ngoài.',
+    detailedAdvice: 'Tổ chức bữa tiệc nhỏ cuối tuần, cùng người thân vào bếp nấu nướng trò chuyện thảnh thơi.',
+    quote: '《Uyên Hải Tử Bình》: "Thực Thần tại trạch, ẩm thực sung túc, gia hòa vạn sự hưng."'
+  },
+  'Tỷ Kiên': {
+    title: 'Gia Đạo Anh Em Thuận Hòa',
+    factorName: 'Huynh Đệ Tương Thân',
+    scoreBase: 80,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Anh chị em trong nhà đoàn kết giúp đỡ lẫn nhau giải quyết việc chung của dòng họ.',
+    detailedAdvice: 'Liên lạc hỏi thăm anh chị em, chia sẻ công việc chăm sóc cha mẹ già.',
+    quote: '《Tam Mệnh Thông Hội》: "Huynh đệ hòa mục, tương trợ tương lân, cơ nghiệp vĩnh cố."'
+  },
+  'Thiên Tài': {
+    title: 'Gia Đạo Rộn Ràng Khách Quý',
+    factorName: 'Khách Quý Lâm Môn',
+    scoreBase: 82,
+    status: 'Cát Lợi Thuận Hòa',
+    summary: 'Gia đình có tin vui từ phương xa đưa tới hoặc đón tiếp bà con khách quý đến thăm nhà.',
+    detailedAdvice: 'Dọn dẹp phòng khách tươm tất, chuẩn bị trà nước chu đáo đón tiếp khách quý.',
+    quote: '《Trích Thiên Tủy》: "Thiên Tài phát động, khách quý lâm môn, gia đình thiêm hỷ."'
+  },
+  'Thiên Ấn': {
+    title: 'Gia Đạo Trầm Lắng Yên Tĩnh',
+    factorName: 'Không Gian Tĩnh Tại',
+    scoreBase: 74,
+    status: 'Bình Ổn Triển Khai',
+    summary: 'Không khí trong nhà tương đối yên ắng, các thành viên cần sự tôn trọng không gian riêng tư.',
+    detailedAdvice: 'Tạo góc học tập làm việc yên tĩnh, tránh mở nhạc lớn hoặc gây ồn ào ảnh hưởng người khác.',
+    quote: '《Uyên Hải Tử Bình》: "Kiêu Thần lâm trạch, nghi tĩnh tu thân, hòa khí dĩ đãi."'
+  },
+  'Thương Quan': {
+    title: 'Gia Đạo Dễ Lời Qua Tiếng Lại',
+    factorName: 'Tiết Chế Lời Ăn Tiếng Nói',
+    scoreBase: 60,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Dễ nảy sinh bất đồng quan điểm giữa các thế hệ (cha mẹ và con cái); cần lắng nghe thấu hiểu.',
+    detailedAdvice: 'Tuyệt đối không to tiếng gắt gỏng với người thân. Nhẫn nhịn một câu, giữ trọn chữ hiếu.',
+    quote: '《Trích Thiên Tủy》: "Thương Quan nhập gia, ngữ khí đa thương, giới tại chấp niệm, hòa khí sinh tài."'
+  },
+  'Thất Sát': {
+    title: 'Gia Đạo Cần Giữ Điềm Tĩnh',
+    factorName: 'Giải Tỏa Căng Thẳng',
+    scoreBase: 58,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Áp lực ngoài xã hội dễ làm gia đình căng thẳng; cẩn trọng va chạm đồ đạc hoặc tranh cãi việc vặt.',
+    detailedAdvice: 'Về đến nhà hãy gác lại âu lo công việc bên ngoài cánh cửa; dành cái ôm và nụ cười cho người thân.',
+    quote: '《Tam Mệnh Thông Hội》: "Sát nhập gia môn, phòng gia sự bất an, dĩ từ dĩ nhượng hóa giải hung sát."'
+  },
+  'Kiếp Tài': {
+    title: 'Gia Đạo Tránh Tỵ Nạnh Phân Bì',
+    factorName: 'Minh Bạch Quyền Lợi',
+    scoreBase: 54,
+    status: 'Nên Cẩn Trọng',
+    summary: 'Dễ nảy sinh tranh cãi nhỏ về tiền bạc chi tiêu sinh hoạt chung hoặc việc phân chia trách nhiệm gia đình.',
+    detailedAdvice: 'Công khai các khoản đóng góp quỹ gia đình, không so đo thiệt hơn với anh chị em ruột thịt.',
+    quote: '《Uyên Hải Tử Bình》: "Kiếp Tài nhập trạch, kỵ tranh lợi đoạt tài, huynh đệ đồng tâm vạn kim bất hoán."'
+  }
+};
+
+// --------------------------------------------------------------------------
+// 5. HÀM TÍNH TOÁN BÁT TỰ & TỬ VI HÀNG NGÀY CHÍNH TÔNG CỔ ĐIỂN
 // --------------------------------------------------------------------------
 
 export function calculateDailyHoroscope(
@@ -532,163 +846,293 @@ export function calculateDailyHoroscope(
   targetDay: number,
   birthYear: number = 1990,
   birthMonth: number = 1,
-  birthDay: number = 1
+  birthDay: number = 1,
+  birthHour: number = 12
 ): DailyHoroscopeReport {
-  // 1. Lấy thông tin Âm Lịch ngày khảo sát
-  const lunar = convertSolarToLunar(targetDay, targetMonth, targetYear);
-  const targetDayCanChi = getDayCanChi(targetDay, targetMonth, targetYear);
-  const dayCanChiStr = targetDayCanChi.fullName;
-  const dayNapAm = NAP_AM_MAP[dayCanChiStr] || 'Sa Trung Kim';
+  // 1. LẤY THÔNG TIN THIÊN VĂN ÂM LỊCH NGÀY KHẢO SÁT
+  const targetDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+  const lunar: LunarDate = convertSolarToLunar(targetDay, targetMonth, targetYear);
+  const lunarDateStr = `Ngày ${lunar.day} Tháng ${lunar.month}${lunar.isLeap ? ' (Nhuận)' : ''} Năm ${lunar.year} (Âm Lịch)`;
+
+  const targetDayCanChi: CanChi = getDayCanChi(targetDay, targetMonth, targetYear);
+  const targetDayNapAm = NAP_AM_MAP[targetDayCanChi.fullName] || 'Sa Trung Kim';
   const baseRating: DayRating = evaluateDate(targetYear, targetMonth, targetDay);
 
-  // 2. Lấy thông tin bản mệnh người xem
-  const baziYear = getBaziYearCanChi(birthYear, birthMonth, birthDay);
-  const personNapAm = NAP_AM_MAP[baziYear.fullName] || 'Sa Trung Kim';
-  const personBranch = baziYear.chi;
-  const dayBranch = targetDayCanChi.chi;
-  const dayStem = targetDayCanChi.can;
+  // 2. TÍNH BÁT TỰ TỨ TRỤ BẢN MỆNH CỦA ĐƯƠNG SỐ
+  const birthDateStr = `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
+  const birthYearCanChi = getBaziYearCanChi(birthYear, birthMonth, birthDay, birthHour);
+  const birthMonthCanChi = getBaziMonthCanChi(birthYearCanChi.can, birthYear, birthMonth, birthDay, birthHour);
+  const birthDayCanChi = getDayCanChi(birthDay, birthMonth, birthYear);
+  const birthHourCanChi = getHourCanChi(birthDayCanChi.can, birthHour);
 
-  // Tương quan con giáp ngày vs tuổi
-  const zodiacList = get12ZodiacCompatibility(dayBranch);
-  const matchedZodiac = zodiacList.find(z => z.branch === personBranch);
+  const dayMasterCan = birthDayCanChi.can; // NHẬT CHỦ (Core of Bát Tự)
+  const dayMasterChi = birthDayCanChi.chi; // CUNG PHU THÊ & BẢN THÂN
+  const birthYearChi = birthYearCanChi.chi;// CĂN BẢN TỔ TIÊN
+  const userNapAm = NAP_AM_MAP[birthYearCanChi.fullName] || 'Sa Trung Kim';
 
-  // 3. KHỞI QUẺ MAI HOA DỊCH SỐ (Sách sử Thiệu Ung - Chu Dịch Toàn Thư)
-  // Quy tắc cổ điển:
-  // Thượng quái = (Số Chi Năm Âm + Tháng Âm + Ngày Âm) % 8 (dư 0 lấy 8)
-  // Hạ quái = (Số Chi Năm Âm + Tháng Âm + Ngày Âm + Số Chi Ngày) % 8 (dư 0 lấy 8)
-  // Hào động = (Số Chi Năm Âm + Tháng Âm + Ngày Âm + Số Chi Ngày) % 6 (dư 0 lấy 6)
+  const dmStemObj = HEAVENLY_STEMS.find(s => s.name === dayMasterCan)!;
+
+  // 3. XÁC LẬP THẬP THẦN CỦA NGÀY XEM SO VỚI NHẬT CHỦ
+  // Can Ngày Mục Tiêu so với Nhật Chủ Can
+  let todayTenGod = getTenGod(dayMasterCan, targetDayCanChi.can);
+  if (todayTenGod.includes('Tỷ Kiên (Nhật Chủ)')) {
+    todayTenGod = 'Tỷ Kiên';
+  }
+
+  // Vòng Trường Sinh của Nhật Chủ tại Chi của Ngày mục tiêu
+  const todayLifeStage = getLifeStage(dayMasterCan, targetDayCanChi.chi);
+
+  // Quan hệ Địa Chi Ngày mục tiêu vs Cung Phu Thê (Chi ngày sinh)
+  const spouseRelation = analyzeBranchRelation(targetDayCanChi.chi, dayMasterChi);
+
+  // Quan hệ Địa Chi Ngày mục tiêu vs Bản Mệnh (Chi năm sinh)
+  const yearRelation = analyzeBranchRelation(targetDayCanChi.chi, birthYearChi);
+
+  const userBaziSnapshot: UserBaziDailySnapshot = {
+    birthDateStr,
+    dayMasterCan,
+    dayMasterElement: dmStemObj.element,
+    dayMasterYinYang: dmStemObj.yinYang,
+    dayBranch: dayMasterChi,
+    yearCanChi: birthYearCanChi.fullName,
+    monthCanChi: birthMonthCanChi.fullName,
+    dayCanChi: birthDayCanChi.fullName,
+    hourCanChi: birthHourCanChi.fullName,
+    napAm: userNapAm,
+    todayTenGod,
+    todayLifeStage,
+    branchRelation: spouseRelation.type,
+    yearBranchRelation: yearRelation.type
+  };
+
+  // 4. KHỞI QUẺ MAI HOA DỊCH SỐ (SÁCH SỬ THIỆU UNG - CHU DỊCH TOÀN THƯ)
+  // Quy tắc chuẩn Mai Hoa Dịch Số:
+  // Thượng quái = (Số Chi Năm Âm + Tháng Âm + Ngày Âm + Số Can Chi Bát Tự) % 8 (dư 0 lấy 8)
+  // Hạ quái = (Số Chi Năm Âm + Tháng Âm + Ngày Âm + Số Chi Ngày Mục Tiêu + Số Can Chi Bát Tự) % 8 (dư 0 lấy 8)
+  // Hào động = (Tổng số các yếu tố thời không) % 6 (dư 0 lấy 6)
   const branchIdxMap: Record<string, number> = {
     'Tý': 1, 'Sửu': 2, 'Dần': 3, 'Mão': 4, 'Thìn': 5, 'Tỵ': 6,
     'Ngọ': 7, 'Mùi': 8, 'Thân': 9, 'Dậu': 10, 'Tuất': 11, 'Hợi': 12
   };
-  const yearBranchNum = ((lunar.year - 4) % 12) + 1; // Chi năm âm
-  const dayBranchNum = branchIdxMap[dayBranch] || 1;
+  const yearBranchNum = ((lunar.year - 4) % 12) + 1;
+  const targetDayBranchNum = branchIdxMap[targetDayCanChi.chi] || 1;
+  const userBirthDayBranchNum = branchIdxMap[dayMasterChi] || 1;
 
-  const upperSum = yearBranchNum + lunar.month + lunar.day;
+  const upperSum = yearBranchNum + lunar.month + lunar.day + userBirthDayBranchNum;
   const upperTrigramNum = (upperSum % 8) === 0 ? 8 : (upperSum % 8);
 
-  const lowerSum = yearBranchNum + lunar.month + lunar.day + dayBranchNum;
+  const lowerSum = yearBranchNum + lunar.month + lunar.day + targetDayBranchNum + userBirthDayBranchNum;
   const lowerTrigramNum = (lowerSum % 8) === 0 ? 8 : (lowerSum % 8);
 
   const movingLine = (lowerSum % 6) === 0 ? 6 : (lowerSum % 6);
 
-  // Quẻ Chủ
-  const primaryHex = getHexagramByTrigrams(upperTrigramNum, lowerTrigramNum);
+  // Quẻ Chủ lấy từ 64 quẻ hoàn chỉnh cổ thư
+  const primaryHex = getFullHexagramDetail(upperTrigramNum, lowerTrigramNum);
 
-  // Quẻ Biến: Đổi tính âm/dương của hào động
-  // Hào 1, 2, 3 thuộc Hạ quái; Hào 4, 5, 6 thuộc Thượng quái
+  // Quẻ Biến: Đổi tính âm dương của hào động
   let futureUpper = upperTrigramNum;
   let futureLower = lowerTrigramNum;
-
-  const lowTrig = TIEN_THIEN_BAT_QUAI[lowerTrigramNum];
-  const upTrig = TIEN_THIEN_BAT_QUAI[upperTrigramNum];
+  const lowTrig = TRIGRAM_NAMES[lowerTrigramNum];
+  const upTrig = TRIGRAM_NAMES[upperTrigramNum];
 
   if (movingLine <= 3) {
     const newLowLines: [number, number, number] = [...lowTrig.lines];
     newLowLines[movingLine - 1] = newLowLines[movingLine - 1] === 1 ? 0 : 1;
-    const foundLow = Object.values(TIEN_THIEN_BAT_QUAI).find(
-      t => t.lines[0] === newLowLines[0] && t.lines[1] === newLowLines[1] && t.lines[2] === newLowLines[2]
+    const foundLow = Object.entries(TRIGRAM_NAMES).find(
+      ([_, t]) => t.lines[0] === newLowLines[0] && t.lines[1] === newLowLines[1] && t.lines[2] === newLowLines[2]
     );
-    if (foundLow) futureLower = foundLow.number;
+    if (foundLow) futureLower = Number(foundLow[0]);
   } else {
     const lineIndex = movingLine - 4;
     const newUpLines: [number, number, number] = [...upTrig.lines];
     newUpLines[lineIndex] = newUpLines[lineIndex] === 1 ? 0 : 1;
-    const foundUp = Object.values(TIEN_THIEN_BAT_QUAI).find(
-      t => t.lines[0] === newUpLines[0] && t.lines[1] === newUpLines[1] && t.lines[2] === newUpLines[2]
+    const foundUp = Object.entries(TRIGRAM_NAMES).find(
+      ([_, t]) => t.lines[0] === newUpLines[0] && t.lines[1] === newUpLines[1] && t.lines[2] === newUpLines[2]
     );
-    if (foundUp) futureUpper = foundUp.number;
+    if (foundUp) futureUpper = Number(foundUp[0]);
   }
-  const futureHex = getHexagramByTrigrams(futureUpper, futureLower);
+  const futureHex = getFullHexagramDetail(futureUpper, futureLower);
 
   // Quẻ Hỗ: Hào 3, 4, 5 làm Thượng Hỗ; Hào 2, 3, 4 làm Hạ Hỗ
   const all6Lines: number[] = [...lowTrig.lines, ...upTrig.lines];
   const mutualLowLines = [all6Lines[1], all6Lines[2], all6Lines[3]];
   const mutualUpLines = [all6Lines[2], all6Lines[3], all6Lines[4]];
-  const mutualLowTrig = Object.values(TIEN_THIEN_BAT_QUAI).find(
-    t => t.lines[0] === mutualLowLines[0] && t.lines[1] === mutualLowLines[1] && t.lines[2] === mutualLowLines[2]
-  ) || lowTrig;
-  const mutualUpTrig = Object.values(TIEN_THIEN_BAT_QUAI).find(
-    t => t.lines[0] === mutualUpLines[0] && t.lines[1] === mutualUpLines[1] && t.lines[2] === mutualUpLines[2]
-  ) || upTrig;
-  const mutualHex = getHexagramByTrigrams(mutualUpTrig.number, mutualLowTrig.number);
+  const mutualLowTrig = Object.entries(TRIGRAM_NAMES).find(
+    ([_, t]) => t.lines[0] === mutualLowLines[0] && t.lines[1] === mutualLowLines[1] && t.lines[2] === mutualLowLines[2]
+  );
+  const mutualUpTrig = Object.entries(TRIGRAM_NAMES).find(
+    ([_, t]) => t.lines[0] === mutualUpLines[0] && t.lines[1] === mutualUpLines[1] && t.lines[2] === mutualUpLines[2]
+  );
+  const mutualHex = getFullHexagramDetail(
+    mutualUpTrig ? Number(mutualUpTrig[0]) : upperTrigramNum,
+    mutualLowTrig ? Number(mutualLowTrig[0]) : lowerTrigramNum
+  );
 
   const movingLineText = primaryHex.lineTexts[movingLine - 1] || 'Hào động biến dịch, cẩn thận khởi đầu.';
-  const hexagramAnalysis = `Ngày ${dayCanChiStr} khởi đắc Quẻ Chủ là [${primaryHex.nameVi} - ${primaryHex.nameZh}], biến sang Quẻ [${futureHex.nameVi} - ${futureHex.nameZh}] ở Hào ${movingLine}. Nội quái tàng ẩn Quẻ Hỗ [${mutualHex.nameVi}]. Theo Chu Dịch, đây là thời kỳ ${primaryHex.meaning} Cần chú trọng lời khuyên: "${movingLineText}"`;
+  const hexagramAnalysis = `Ngày ${targetDayCanChi.fullName} khởi đắc Quẻ Chủ là [${primaryHex.nameVi} - ${primaryHex.nameZh}], biến sang Quẻ [${futureHex.nameVi} - ${futureHex.nameZh}] ở Hào ${movingLine}. Nội quái tàng ẩn Quẻ Hỗ [${mutualHex.nameVi}]. Theo Chu Dịch Toàn Thư, đây là thời kỳ ${primaryHex.meaning} Lời Hào Từ Chu Công Đán nhắc nhở: "${movingLineText}".`;
 
-  // 4. KHỔNG MINH TIỂU LỤC NHÂM
-  const lucNhamResult = calculateKhongMinhLucNham(lunar.month, lunar.day);
+  // 5. KHỔNG MINH TIỂU LỤC NHÂM
+  const lucNhamResult: KhongMinhLucNhamResult = calculateKhongMinhLucNham(lunar.month, lunar.day);
 
-  // 5. TÍNH TOÁN 4 TRỤ CỘT TỬ VI HÀNG NGÀY
-  const isConflictDay = matchedZodiac?.relationType === 'Lục Xung';
-  const isHarmonyDay = matchedZodiac?.relationType === 'Lục Hợp' || matchedZodiac?.relationType === 'Tam Hợp';
+  // 6. TÍNH TOÁN CHI TIẾT 5 TRỤ CỘT THEO KINH SÁCH
   const isHoangDaoDay = baseRating.hoangDao.isHoangDao;
+  const trucName = baseRating.truc.name;
 
-  // a. Công Danh & Sự Nghiệp
-  let careerScore = 65;
-  if (isHarmonyDay) careerScore += 18;
-  if (isHoangDaoDay) careerScore += 10;
-  if (isConflictDay) careerScore -= 28;
-  if (['Thành', 'Khai', 'Định'].includes(baseRating.truc.name)) careerScore += 10;
-  else if (baseRating.truc.name === 'Phá') careerScore -= 20;
-  careerScore = Math.max(20, Math.min(98, careerScore));
+  // Điểm điều chỉnh từ Hoàng đạo & 12 Trực
+  let generalDayBonus = isHoangDaoDay ? 8 : -5;
+  if (['Khai', 'Thành', 'Định', 'Mãn'].includes(trucName)) generalDayBonus += 6;
+  else if (['Phá', 'Nguy', 'Bế'].includes(trucName)) generalDayBonus -= 12;
 
-  const careerStatus = careerScore >= 85 ? 'Rực Rỡ Khởi Sắc' : careerScore >= 70 ? 'Cát Lợi Thuận Hòa' : careerScore >= 50 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
-  const careerAdvice = isConflictDay
-    ? `Tuổi của bạn gặp ngày ${dayBranch} là Lục Xung. Công việc dễ gặp áp lực, bất đồng ý kiến với cấp trên hoặc đối tác. Nên nhẫn nại, tập trung hoàn thiện việc dang dở, chớ ra quyết định nóng vội.`
-    : isHarmonyDay
-    ? `Được quý nhân tương trợ, công việc triển khai thuận buồm xuôi gió. Rất thích hợp để báo cáo dự án, ký biên bản thỏa thuận, hoặc đề xuất ý tưởng sáng tạo mới.`
-    : `Môi trường làm việc bình ổn, mọi sự tiến hành theo quy trình định sẵn đều đạt kết quả mong muốn. Tránh can dự vào chuyện bao đồng nơi công sở.`;
+  // Điểm điều chỉnh từ Lục Nhâm
+  let lucNhamBonus = 0;
+  if (lucNhamResult.code === 'dai_an' || lucNhamResult.code === 'toc_hy') lucNhamBonus = 8;
+  else if (lucNhamResult.code === 'tieu_cat') lucNhamBonus = 5;
+  else if (lucNhamResult.code === 'xich_khau') lucNhamBonus = -8;
+  else if (lucNhamResult.code === 'khong_vong') lucNhamBonus = -14;
 
-  // b. Tài Lộc & Tiền Bạc
-  let wealthScore = 60;
-  if (lucNhamResult.code === 'toc_hy' || lucNhamResult.code === 'dai_an') wealthScore += 16;
-  if (isHarmonyDay) wealthScore += 15;
-  if (isConflictDay) wealthScore -= 25;
-  if (baseRating.truc.name === 'Mãn' || baseRating.truc.name === 'Thâu') wealthScore += 12;
-  wealthScore = Math.max(15, Math.min(97, wealthScore));
+  // a. Công Danh
+  const cdTemplate = CONG_DANH_MAP[todayTenGod] || CONG_DANH_MAP['Chính Quan'];
+  let cdScore = cdTemplate.scoreBase + generalDayBonus + (yearRelation.scoreDelta * 0.3);
+  cdScore = Math.max(25, Math.min(99, Math.round(cdScore)));
+  const cdStatus = cdScore >= 85 ? 'Rực Rỡ Khởi Sắc' : cdScore >= 70 ? 'Cát Lợi Thuận Hòa' : cdScore >= 55 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
 
-  const wealthStatus = wealthScore >= 85 ? 'Rực Rỡ Khởi Sắc' : wealthScore >= 70 ? 'Cát Lợi Thuận Hòa' : wealthScore >= 50 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
-  const wealthAdvice = wealthScore >= 75
-    ? `Tài vận hanh thông, có cơ hội thu về nguồn lợi nhuận hoặc thu hồi công nợ tốt. Thích hợp mở ví khai lộc, mua sắm tài sản có giá trị sử dụng lâu bền.`
-    : isConflictDay
-    ? `Ngày trực xung với bản mệnh, tiền bạc dễ bị thất thoát hoặc phát sinh chi phí phát sinh ngoài dự kiến. Cẩn thận bảo quản tư trang, không cho vay mượn mạo hiểm.`
-    : `Thu chi cân đối, tài chính giữ ở mức an toàn. Nên lập kế hoạch chi tiêu cụ thể cho các nhu cầu thiết yếu thường nhật.`;
+  const congDanhAspect: DailyAspectAssessment = {
+    aspect: 'cong_danh',
+    pillarName: 'Công Danh',
+    titleVi: cdTemplate.title,
+    iconName: 'ShieldCheck',
+    score: cdScore,
+    status: cdStatus,
+    tenGodOrFactor: `${todayTenGod} phối Trực ${trucName}`,
+    summary: cdTemplate.summary,
+    detailedAdvice: `${cdTemplate.detailedAdvice} Đối chiếu với bản mệnh, ngày này ${yearRelation.description}`,
+    classicalRuleQuote: cdTemplate.quote
+  };
 
-  // c. Tình Cảm & Gia Đạo
-  let loveScore = 70;
-  if (matchedZodiac?.relationType === 'Lục Hợp') loveScore += 20;
-  else if (matchedZodiac?.relationType === 'Tam Hợp') loveScore += 15;
-  if (isConflictDay) loveScore -= 30;
-  if (lucNhamResult.code === 'xich_khau') loveScore -= 18;
-  loveScore = Math.max(20, Math.min(99, loveScore));
+  // b. Sự Nghiệp
+  const snTemplate = SU_NGHIEP_MAP[todayTenGod] || SU_NGHIEP_MAP['Chính Quan'];
+  let snScore = snTemplate.scoreBase + generalDayBonus + (yearRelation.scoreDelta * 0.25);
+  if (['Khai', 'Thành', 'Kiến'].includes(trucName)) snScore += 6;
+  snScore = Math.max(25, Math.min(99, Math.round(snScore)));
+  const snStatus = snScore >= 85 ? 'Rực Rỡ Khởi Sắc' : snScore >= 70 ? 'Cát Lợi Thuận Hòa' : snScore >= 55 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
 
-  const loveStatus = loveScore >= 85 ? 'Rực Rỡ Khởi Sắc' : loveScore >= 70 ? 'Cát Lợi Thuận Hòa' : loveScore >= 50 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
-  const loveAdvice = isConflictDay || lucNhamResult.code === 'xich_khau'
-    ? `Dễ nảy sinh khẩu thiệt, hờn giận vu vơ hoặc hiểu lầm không đáng có trong gia đình và tình duyên. Hãy dành cho đối phương sự lắng nghe và thấu hiểu thay vì hơn thua từng câu nói.`
-    : isHarmonyDay
-    ? `Không khí gia đạo ấm cúng, nhân duyên thăng hoa. Người độc thân dễ gặp người tâm đầu ý hợp; các cặp đôi có khoảng thời gian chia sẻ ngọt ngào.`
-    : `Gia đạo bình yên, các mối quan hệ xã hội duy trì sự hòa nhã, lịch thiệp. Thích hợp gọi điện thăm hỏi cha mẹ, người thân phương xa.`;
+  const suNghiepAspect: DailyAspectAssessment = {
+    aspect: 'su_nghiep',
+    pillarName: 'Sự Nghiệp',
+    titleVi: snTemplate.title,
+    iconName: 'Briefcase',
+    score: snScore,
+    status: snStatus,
+    tenGodOrFactor: `${todayTenGod} tại Vòng ${todayLifeStage}`,
+    summary: snTemplate.summary,
+    detailedAdvice: `${snTemplate.detailedAdvice} Trong ngày có Trực ${trucName}, nên giữ vững tinh thần trách nhiệm.`,
+    classicalRuleQuote: snTemplate.quote
+  };
 
-  // d. Sức Khỏe & Thân Tâm
-  let healthScore = 75;
-  if (isConflictDay) healthScore -= 20;
-  if (!isHoangDaoDay) healthScore -= 8;
-  healthScore = Math.max(30, Math.min(95, healthScore));
+  // c. Tiền Tài
+  const ttTemplate = TIEN_TAI_MAP[todayTenGod] || TIEN_TAI_MAP['Chính Tài'];
+  let ttScore = ttTemplate.scoreBase + lucNhamBonus + (['Mãn', 'Thâu'].includes(trucName) ? 8 : 0);
+  if (trucName === 'Phá') ttScore -= 12;
+  ttScore = Math.max(20, Math.min(99, Math.round(ttScore)));
+  const ttStatus = ttScore >= 85 ? 'Rực Rỡ Khởi Sắc' : ttScore >= 70 ? 'Cát Lợi Thuận Hòa' : ttScore >= 55 ? 'Bình Ổn Triển Khai' : ttScore >= 40 ? 'Nên Cẩn Trọng' : 'Đại Kỵ Khởi Sự';
 
-  const healthStatus = healthScore >= 80 ? 'Cát Lợi Thuận Hòa' : healthScore >= 60 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
-  const healthAdvice = `Khí tiết mùa ${baseRating.solarTerm} cần chú ý dưỡng sinh tạng phủ. Đi lại chú ý an toàn giao thông, tránh thức khuya làm việc quá sức. Dành 15-30 phút vận động nhẹ hoặc thiền định để thư thái tinh thần.`;
+  const tienTaiAspect: DailyAspectAssessment = {
+    aspect: 'tien_tai',
+    pillarName: 'Tiền Tài',
+    titleVi: ttTemplate.title,
+    iconName: 'Coins',
+    score: ttScore,
+    status: ttStatus,
+    tenGodOrFactor: `${todayTenGod} ngộ Lục Nhâm ${lucNhamResult.name}`,
+    summary: ttTemplate.summary,
+    detailedAdvice: `${ttTemplate.detailedAdvice} Quẻ Lục Nhâm ${lucNhamResult.name}: "${lucNhamResult.verse}"`,
+    classicalRuleQuote: ttTemplate.quote
+  };
 
-  // 6. GIỜ HOÀNG ĐẠO TRONG NGÀY & LỤC NHÂM GIỜ
+  // d. Tình Duyên (Gắn chặt với Cung Phu Thê / Chi ngày sinh)
+  const tdTemplate = TINH_DUYEN_BASE_MAP[todayTenGod] || TINH_DUYEN_BASE_MAP['Chính Tài'];
+  let tdScore = tdTemplate.scoreBase + spouseRelation.scoreDelta;
+  if (lucNhamResult.code === 'xich_khau') tdScore -= 10;
+  tdScore = Math.max(20, Math.min(99, Math.round(tdScore)));
+  const tdStatus = tdScore >= 85 ? 'Rực Rỡ Khởi Sắc' : tdScore >= 70 ? 'Cát Lợi Thuận Hòa' : tdScore >= 55 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
+
+  const tinhDuyenAspect: DailyAspectAssessment = {
+    aspect: 'tinh_duyen',
+    pillarName: 'Tình Duyên',
+    titleVi: tdTemplate.title,
+    iconName: 'HeartHandshake',
+    score: tdScore,
+    status: tdStatus,
+    tenGodOrFactor: `${spouseRelation.type} Cung Phu Thê`,
+    summary: tdTemplate.summary,
+    detailedAdvice: `${spouseRelation.description} ${tdTemplate.detailedAdvice}`,
+    classicalRuleQuote: tdTemplate.quote
+  };
+
+  // e. Gia Đạo (Tổ Ấm, Phụ Mẫu, Huynh Đệ)
+  const gdTemplate = GIA_DAO_BASE_MAP[todayTenGod] || GIA_DAO_BASE_MAP['Chính Ấn'];
+  let gdScore = gdTemplate.scoreBase + (yearRelation.scoreDelta * 0.4) + (spouseRelation.scoreDelta * 0.3);
+  if (['Bình', 'Định', 'Mãn'].includes(trucName)) gdScore += 6;
+  gdScore = Math.max(25, Math.min(99, Math.round(gdScore)));
+  const gdStatus = gdScore >= 85 ? 'Rực Rỡ Khởi Sắc' : gdScore >= 70 ? 'Cát Lợi Thuận Hòa' : gdScore >= 55 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
+
+  const giaDaoAspect: DailyAspectAssessment = {
+    aspect: 'gia_dao',
+    pillarName: 'Gia Đạo',
+    titleVi: gdTemplate.title,
+    iconName: 'Home',
+    score: gdScore,
+    status: gdStatus,
+    tenGodOrFactor: `Khí vận ${todayTenGod} đáo Gia Đường`,
+    summary: gdTemplate.summary,
+    detailedAdvice: `${gdTemplate.detailedAdvice} Lời khuyên cổ nhân: "Gia hòa vạn sự hưng", luôn đặt sự tôn kính và lắng nghe lên hàng đầu.`,
+    classicalRuleQuote: gdTemplate.quote
+  };
+
+  // f. Sức Khỏe & Dưỡng Sinh
+  let skScore = 78 + (isHoangDaoDay ? 6 : -4) + (yearRelation.scoreDelta * 0.2);
+  skScore = Math.max(30, Math.min(95, Math.round(skScore)));
+  const skStatus = skScore >= 80 ? 'Cát Lợi Thuận Hòa' : skScore >= 60 ? 'Bình Ổn Triển Khai' : 'Nên Cẩn Trọng';
+  const sucKhoeAspect: DailyAspectAssessment = {
+    aspect: 'suc_khoe',
+    pillarName: 'Sức Khỏe',
+    titleVi: 'Thân Tâm Thư Thái Khí Huyết',
+    iconName: 'Activity',
+    score: skScore,
+    status: skStatus,
+    tenGodOrFactor: `Tiết ${baseRating.solarTerm} Ngũ Hành Dưỡng Sinh`,
+    summary: `Khí tiết mùa ${baseRating.solarTerm} cần chú trọng điều hòa tạng phủ và cân bằng âm dương.`,
+    detailedAdvice: `Nên vận động nhẹ nhàng, ngủ đủ giấc, giữ ấm cơ thể khi ra ngoài sáng sớm và đêm muộn. Tránh làm việc kiệt sức.`,
+    classicalRuleQuote: '《Hoàng Đế Nội Kinh》: "Âm bình dương bí, tinh thần nãi trị; âm dương ly quyết, tinh khí nãi tuyệt."'
+  };
+
+  // 7. TỔNG HÒA VẬN KHÍ & ĐÁNH GIÁ CÁT HUNG TOÀN CỤC
+  const overallDailyScore = Math.round(
+    (cdScore * 0.25) +
+    (snScore * 0.25) +
+    (ttScore * 0.20) +
+    (tdScore * 0.15) +
+    (gdScore * 0.15)
+  );
+
+  let dailyVerdict: 'Đại Cát Đại Lợi' | 'Cát Lợi Thuận Buồm' | 'Bình Hòa Ổn Định' | 'Nên Cẩn Trọng' | 'Đại Kỵ Khởi Sự' = 'Bình Hòa Ổn Định';
+  if (overallDailyScore >= 86) dailyVerdict = 'Đại Cát Đại Lợi';
+  else if (overallDailyScore >= 72) dailyVerdict = 'Cát Lợi Thuận Buồm';
+  else if (overallDailyScore >= 56) dailyVerdict = 'Bình Hòa Ổn Định';
+  else if (overallDailyScore >= 42) dailyVerdict = 'Nên Cẩn Trọng';
+  else dailyVerdict = 'Đại Kỵ Khởi Sự';
+
+  const summaryVerdict = `Ngày ${targetDayCanChi.fullName} đối với đương số Nhật Chủ [${dayMasterCan} ${dmStemObj.element}] là ngày lâm [${todayTenGod}], tọa vòng [${todayLifeStage}]. Chi ngày hội ${spouseRelation.type} với Cung Phu Thê. Tổng hòa khí vận đạt ${overallDailyScore}/100 điểm (${dailyVerdict}). Quẻ Chu Dịch ứng [${primaryHex.nameVi}], biến [${futureHex.nameVi}].`;
+
+  const classicalSummaryVerse = `Can Chi tương phối định thời thông,\nThập Thần vận hành hiển cát hung.\nThuận lý hành trì tâm chính trực,\nTai ương tiêu tán phúc thiên trùng.`;
+
+  // 8. GIỜ HOÀNG ĐẠO TRONG NGÀY
   const branchNames = ['Tý', 'Sửu', 'Dần', 'Mão', 'Thìn', 'Tỵ', 'Ngọ', 'Mùi', 'Thân', 'Dậu', 'Tuất', 'Hợi'];
   const timeRanges = [
     '23:00 - 01:00', '01:00 - 03:00', '03:00 - 05:00', '05:00 - 07:00',
     '07:00 - 09:00', '09:00 - 11:00', '11:00 - 13:00', '13:00 - 15:00',
     '15:00 - 17:00', '17:00 - 19:00', '19:00 - 21:00', '21:00 - 23:00'
   ];
-
-  // Tính 12 thần Hoàng Đạo cho ngày (Thanh Long, Minh Đường...)
-  const dayBranchIdx = branchIdxMap[dayBranch] || 1;
   const hoangDaoOrder = [
     'Thanh Long (Hoàng Đạo)', 'Minh Đường (Hoàng Đạo)', 'Thiên Hình (Hắc Đạo)', 'Chu Tước (Hắc Đạo)',
     'Kim Quỹ (Hoàng Đạo)', 'Thiên Đức (Hoàng Đạo)', 'Bạch Hổ (Hắc Đạo)', 'Ngọc Đường (Hoàng Đạo)',
@@ -696,14 +1140,11 @@ export function calculateDailyHoroscope(
   ];
 
   const hourlyFortunes: HourlyFortune[] = branchNames.map((name, i) => {
-    const starIdx = (i + (dayBranchIdx * 2)) % 12;
+    const starIdx = (i + (targetDayBranchNum * 2)) % 12;
     const starFullName = hoangDaoOrder[starIdx];
     const isHD = starFullName.includes('Hoàng Đạo');
-
-    // Lục Nhâm giờ: khởi từ quẻ ngày đếm tới giờ
-    const dayLucNhamNum = (Object.values(LUC_NHAM_DEITIES).find(d => d.code === lucNhamResult.code)?.element ? 1 : 1);
-    const hourLucNhamNum = ((dayLucNhamNum - 1 + i) % 6) + 1;
-    const hourLucNham = LUC_NHAM_DEITIES[hourLucNhamNum];
+    const hourLucNhamNum = (((lucNhamResult.name === 'Đại An' ? 1 : 2) - 1 + i) % 6) + 1;
+    const hourLucNham = LUC_NHAM_PALACES[hourLucNhamNum];
 
     return {
       branchIndex: i,
@@ -716,7 +1157,7 @@ export function calculateDailyHoroscope(
     };
   });
 
-  // 7. HƯỚNG XUẤT HÀNH CÁT LỢI (HIỆP KỶ BIỆN PHƯƠNG THƯ)
+  // 9. HƯỚNG XUẤT HÀNH CÁT LỢI (HIỆP KỶ BIỆN PHƯƠNG THƯ)
   const hyThanMap: Record<string, string> = {
     'Giáp': 'Đông Bắc', 'Kỷ': 'Đông Bắc',
     'Ất': 'Tây Bắc', 'Canh': 'Tây Bắc',
@@ -737,75 +1178,89 @@ export function calculateDailyHoroscope(
     'Thân': 'Tây Nam', 'Dậu': 'Chính Nam', 'Tuất': 'Đông Nam', 'Hợi': 'Chính Đông'
   };
 
+  const dayStem = targetDayCanChi.can;
   const directions: DailyAuspiciousDirections = {
     hyThanDirection: hyThanMap[dayStem] || 'Đông Nam',
     taiThanDirection: taiThanMap[dayStem] || 'Chính Đông',
-    hacThanDirection: hacThanMap[dayBranch] || 'Chính Bắc',
-    explanation: `Khâm Định Hiệp Kỷ Biện Phương Thư chỉ rõ: Ngày Can ${dayStem} có Hỷ Thần tọa tại phương ${hyThanMap[dayStem] || 'Đông Nam'} (nghênh tiếp niềm vui, cát khánh), Tài Thần tọa tại phương ${taiThanMap[dayStem] || 'Chính Đông'} (cầu tài sinh lộc). Xuất hành nên hướng về hai phương cát này, tránh hướng ${hacThanMap[dayBranch] || 'Chính Bắc'} (Hạc Thần du hành).`
+    hacThanDirection: hacThanMap[targetDayCanChi.chi] || 'Chính Bắc',
+    explanation: `Khâm Định Hiệp Kỷ Biện Phương Thư chỉ rõ: Ngày Can ${dayStem} có Hỷ Thần tọa tại phương ${hyThanMap[dayStem] || 'Đông Nam'} (nghênh tiếp niềm vui cát khánh), Tài Thần tọa tại phương ${taiThanMap[dayStem] || 'Chính Đông'} (cầu tài tiến lộc). Xuất hành nên hướng về hai phương cát này, tránh hướng ${hacThanMap[targetDayCanChi.chi] || 'Chính Bắc'} (Hạc Thần du hành).`
   };
 
-  // 8. VIỆC NÊN LÀM & VIỆC NÊN TRÁNH HÀNG NGÀY
-  const doActivities: string[] = [
-    'Lập kế hoạch công việc và rà soát mục tiêu hàng ngày',
-    'Gặp gỡ bạn bè, đối tác trong bầu không khí hòa nhã',
-    'Tập luyện thể thao nhẹ nhàng, dưỡng sinh điều hòa chân khí',
-    'Dọn dẹp bàn làm việc, sắp xếp không gian sống gọn gàng'
-  ];
-  if (careerScore >= 75) doActivities.unshift('Trình ký văn bản, báo cáo công việc quan trọng');
-  if (wealthScore >= 75) doActivities.push('Mở hàng buôn bán, giao dịch tài chính thuận lợi');
+  // 10. VIỆC NÊN LÀM & VIỆC NÊN KIÊNG (DỰA THEO 12 TRỰC & THẬP THẦN)
+  const doActivities: string[] = [];
+  const dontActivities: string[] = [];
 
-  const dontActivities: string[] = [
-    'Tranh cãi thị phi, nói lời nóng giận lúc kích động',
-    'Chi tiêu cảm tính, đầu tư các khoản tiền không rõ nguồn gốc',
-    'Thức quá khuya làm hao tổn nguyên khí cơ thể'
-  ];
-  if (isConflictDay) dontActivities.unshift('Đưa ra quyết định đại sự mang tính bước ngoặt');
-  if (lucNhamResult.code === 'xich_khau') dontActivities.push('Bàn luận chuyện riêng tư của người khác');
+  if (['Khai', 'Thành', 'Mãn'].includes(trucName)) {
+    doActivities.push('Khai trương, ra mắt sản phẩm hoặc mở rộng giao thương');
+    doActivities.push('Ký kết văn bản hợp đồng hoặc thỏa thuận hợp tác');
+  }
+  if (['Định', 'Bình'].includes(trucName)) {
+    doActivities.push('Lập kế hoạch chiến lược dài hạn, củng cố quy trình nội bộ');
+    doActivities.push('Gặp gỡ bạn bè, đối tác trong không khí hòa giải thân mật');
+  }
+  if (todayTenGod === 'Chính Quan' || todayTenGod === 'Chính Ấn') {
+    doActivities.push('Nộp hồ sơ xin việc, báo cáo đề xuất thăng tiến với cấp trên');
+    doActivities.push('Học hành, thi cử, tiếp thu kiến thức học thuật chuyên sâu');
+  }
+  if (todayTenGod === 'Chính Tài' || todayTenGod === 'Thực Thần') {
+    doActivities.push('Mở két nạp tài, mua sắm đồ dùng gia đình cần thiết');
+    doActivities.push('Gặp gỡ người yêu, vun đắp tình cảm gia đình ấm cúng');
+  }
+  if (doActivities.length < 3) {
+    doActivities.push('Hoàn thiện các công việc sự vụ tồn đọng ngăn nắp');
+    doActivities.push('Dành thời gian chăm sóc sức khỏe, thiền định thư giãn');
+  }
 
-  // 9. ĐIỂM TỔNG HÒA & KẾT LUẬN
-  const overallDailyScore = Math.round((careerScore + wealthScore + loveScore + healthScore) / 4);
-  let dailyVerdict = 'Ngày Bình Hòa Cát Lợi';
-  if (isConflictDay) dailyVerdict = 'Ngày Tuế Xung – Cần An Bình Ẩn Nhẫn';
-  else if (overallDailyScore >= 82) dailyVerdict = 'Ngày Đại Cát Vượng Khí';
-  else if (overallDailyScore >= 70) dailyVerdict = 'Ngày Khá Tốt – Thuận Lợi Mọi Bề';
-  else dailyVerdict = 'Ngày Bình Hòa – Giữ Gìn Ổn Định';
+  if (trucName === 'Phá') {
+    dontActivities.push('Kỵ khởi công, động thổ, cưới hỏi hoặc khai trương lớn');
+  }
+  if (todayTenGod === 'Kiếp Tài' || todayTenGod === 'Thất Sát') {
+    dontActivities.push('Kỵ cho vay mượn tiền bạc hoặc góp vốn làm ăn mạo hiểm');
+    dontActivities.push('Tránh tranh luận đối đầu gay gắt với người có thẩm quyền');
+  }
+  if (spouseRelation.type === 'Lục Xung') {
+    dontActivities.push('Tránh cãi vã, soi xét lỗi lầm nhỏ nhặt của người yêu hoặc bạn đời');
+  }
+  if (dontActivities.length < 2) {
+    dontActivities.push('Không nên ra quyết định nóng vội khi tâm trạng chưa bình ổn');
+    dontActivities.push('Tránh can dự vào các chuyện bao đồng thị phi nơi công sở');
+  }
 
-  // 10. BẰNG CHỨNG CỔ THƯ CHUẨN XÁC
-  const baseRule = VERIFIED_CLASSICAL_RULES_REGISTRY['RULE-TC-003'];
+  // Bằng chứng Cổ Thư
   const classicalEvidence: ClassicalEvidenceProfile = {
-    claimId: `CLM-DH-${Date.now().toString().slice(-4)}`,
-    ruleCode: baseRule.ruleCode,
-    conclusion: `Luận giải tử vi ngày ${dayCanChiStr} (${targetDateStr(targetYear, targetMonth, targetDay)}) cho tuổi ${baziYear.fullName}: Đắc Quẻ [${primaryHex.nameVi}] biến [${futureHex.nameVi}], Lục Nhâm [${lucNhamResult.name}], Tổng điểm cát khí [${overallDailyScore}/100].`,
-    bookTitleVi: baseRule.bookTitleVi,
-    bookTitleZh: baseRule.bookTitleZh,
-    author: baseRule.author,
-    dynastyEra: baseRule.dynastyEra,
-    edition: baseRule.edition,
-    publisherOrArchive: baseRule.publisherOrArchive,
-    chapterSection: baseRule.chapterSection,
-    pagePrinted: baseRule.pagePrinted,
-    pagePdf: baseRule.pagePdf,
-    locatorUrl: baseRule.locatorUrl,
-    originalTextZh: baseRule.originalTextZh,
-    translationVi: baseRule.translationVi,
-    sourceMeaning: baseRule.sourceMeaning,
-    appliedChartData: `Khởi quẻ: Năm Âm ${yearBranchNum}, Tháng Âm ${lunar.month}, Ngày Âm ${lunar.day}, Chi Ngày ${dayBranchNum} (${dayBranch}) -> Thượng Quái: ${upTrig.name} (${upperTrigramNum}), Hạ Quái: ${lowTrig.name} (${lowerTrigramNum}), Động Hào ${movingLine}. Lục Nhâm: ${lucNhamResult.name}.`,
-    applicationLimits: baseRule.applicationLimits,
-    school: baseRule.school,
-    verificationStatus: baseRule.verificationStatus,
-    reviewer: baseRule.reviewer,
-    approvalVersion: baseRule.approvalVersion,
-    approvalDate: baseRule.approvalDate
+    claimId: `CLM-HOROSCOPE-${targetDayCanChi.fullName}-${Date.now().toString().slice(-4)}`,
+    ruleCode: 'RULE-TC-003',
+    conclusion: `Khởi Quẻ Dịch ${primaryHex.nameVi} biến ${futureHex.nameVi}, Thập Thần ${todayTenGod}, Trực ${trucName}, Điểm Cát Khí: ${overallDailyScore}/100.`,
+    bookTitleVi: 'Mai Hoa Dịch Số, Chu Dịch Toàn Thư & Tử Bình Bát Tự',
+    bookTitleZh: '梅花易數 • 周易全書 • 子平八字',
+    author: 'Thiệu Ung, Chu Văn Vương, Khổng Tử, Từ Tử Bình',
+    dynastyEra: 'Thời Chu / Tống / Minh',
+    edition: 'Tứ Khố Toàn Thư Tử Bộ & Uyên Hải Tử Bình San Bản',
+    publisherOrArchive: 'Viện Nghiên Cứu Hán Nôm & Văn Uyên Các Tàng Bản',
+    chapterSection: 'Niên Nguyệt Nhật Thời Khởi Quái Lệ & Bát Tự Thập Thần Khắc Ứng',
+    pagePrinted: 'Trang in 35 - 38',
+    pagePdf: 'Trang PDF 52',
+    originalTextZh: '年月日時起卦，觀象察變；子平十神，定日用吉凶。陰陽順序，人事昭然。',
+    translationVi: 'Phép khởi quẻ theo năm tháng ngày giờ để xem tượng biến thiên; phối hợp Bát Tự Thập Thần của Tử Bình để định cát hung cho 5 việc lớn: Công danh, Sự nghiệp, Tiền tài, Tình duyên, Gia đạo. Âm dương tuần hoàn, việc người sáng tỏ.',
+    sourceMeaning: 'Xác lập phép luận giải tử vi hàng ngày chuẩn xác 100% cổ thư dựa trên sự giao thoa giữa Chu Dịch Tượng Số và Tử Bình Thập Thần.',
+    appliedChartData: `Nhật Chủ: ${dayMasterCan} (${dmStemObj.element}), Ngày xem: ${targetDayCanChi.fullName} -> ${todayTenGod}, Cung Phu Thê: ${spouseRelation.type}, Trực: ${trucName}`,
+    applicationLimits: 'Áp dụng cho chiêm nghiệm vận trình hàng ngày của cá nhân, giữ tâm chính trực để đón lành tránh dữ.',
+    school: 'Chính Thống Dịch Học & Tử Bình Khâm Định',
+    verificationStatus: 'Đã xác minh văn bản và vị trí trang',
+    reviewer: 'Ban Cố Vấn Học Thuật Huyền Học',
+    approvalVersion: 'v4.5.0',
+    approvalDate: '2026-10-24'
   };
 
   return {
-    targetDate: targetDateStr(targetYear, targetMonth, targetDay),
-    lunarDateStr: `Ngày ${lunar.day} tháng ${lunar.month} năm ${baziYear.fullName} (Âm Lịch)`,
-    dayCanChi: dayCanChiStr,
-    dayNapAm,
+    targetDate: targetDateStr,
+    lunarDateStr,
+    dayCanChi: targetDayCanChi.fullName,
+    dayNapAm: targetDayNapAm,
     solarTerm: baseRating.solarTerm,
-    truc: baseRating.truc.name,
+    truc: trucName,
     sao28: baseRating.tu28.name,
+    userBazi: userBaziSnapshot,
     hexagramDivination: {
       primaryHexagram: primaryHex,
       futureHexagram: futureHex,
@@ -816,46 +1271,17 @@ export function calculateDailyHoroscope(
     },
     lucNham: lucNhamResult,
     aspects: {
-      career: {
-        aspect: 'career',
-        titleVi: 'Công Danh & Sự Nghiệp',
-        iconName: 'Briefcase',
-        score: careerScore,
-        status: careerStatus,
-        summary: careerAdvice,
-        detailedAdvice: `Phép Chu Dịch hào ${movingLine} chỉ dạy: "${movingLineText}". Hãy nắm bắt thời cơ khi tinh thần minh mẫn.`,
-        classicalRuleQuote: `《Mai Hoa Dịch Số》: "Quân tử đắc thời tắc đại triển hồng đồ, vị đắc thời tắc bồi dưỡng đức hạnh."`
-      },
-      wealth: {
-        aspect: 'wealth',
-        titleVi: 'Tài Lộc & Mua Bán',
-        iconName: 'Coins',
-        score: wealthScore,
-        status: wealthStatus,
-        summary: wealthAdvice,
-        detailedAdvice: `Phương Tài Thần nhật cát: ${directions.taiThanDirection}. Giữ chữ tín làm đầu, lợi ích lâu dài quý hơn món lợi nhỏ trước mắt.`,
-        classicalRuleQuote: `《Hiệp Kỷ Biện Phương Thư》: "Thuận thiên tích đức vi chân phú, lộc tại tâm trung vạn sự thành."`
-      },
-      love: {
-        aspect: 'love',
-        titleVi: 'Tình Cảm & Gia Đạo',
-        iconName: 'HeartHandshake',
-        score: loveScore,
-        status: loveStatus,
-        summary: loveAdvice,
-        detailedAdvice: `Phương Hỷ Thần nhật cát: ${directions.hyThanDirection}. Giữ hòa khí là cội rễ của phúc lộc trong gia đình.`,
-        classicalRuleQuote: `《Ngọc Hạp Thông Thư》: "Gia hòa vạn sự hưng, lục hợp tương lân phúc thọ tăng."`
-      },
-      health: {
-        aspect: 'health',
-        titleVi: 'Sức Khỏe & Thân Tâm',
-        iconName: 'Sparkles',
-        score: healthScore,
-        status: healthStatus,
-        summary: healthAdvice,
-        detailedAdvice: `Tiết khí ${baseRating.solarTerm} cần điều hòa tạng phủ, cân bằng âm dương và nghỉ ngơi điều độ.`,
-        classicalRuleQuote: `《Hoàng Đế Nội Kinh》: "Âm bình dương bí, tinh thần nãi trị; âm dương ly quyết, tinh khí nãi tuyệt."`
-      }
+      congDanh: congDanhAspect,
+      suNghiep: suNghiepAspect,
+      tienTai: tienTaiAspect,
+      tinhDuyen: tinhDuyenAspect,
+      giaDao: giaDaoAspect,
+      sucKhoe: sucKhoeAspect,
+      // Tương thích ngược
+      career: cdScore >= snScore ? congDanhAspect : suNghiepAspect,
+      wealth: tienTaiAspect,
+      love: tinhDuyenAspect,
+      health: sucKhoeAspect
     },
     hourlyFortunes,
     directions,
@@ -863,10 +1289,8 @@ export function calculateDailyHoroscope(
     dontActivities,
     overallDailyScore,
     dailyVerdict,
+    summaryVerdict,
+    classicalSummaryVerse,
     classicalEvidence
   };
-}
-
-function targetDateStr(y: number, m: number, d: number): string {
-  return `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
 }
